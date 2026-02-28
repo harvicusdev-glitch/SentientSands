@@ -1,0 +1,61 @@
+AVAILABLE ACTIONS (Place at the end of dialogue):
+IMPORTANT: Action tags are OPTIONAL. Only use them if a specific, intentional action is occurring. DO NOT include action tags in every response. DO NOT use tags for things that are already happening or for idle status.
+
+- [ACTION: ATTACK] -> Use if the conversation turns violent. 
+  Example: "You picked the wrong day to cross me, flatskin. [ACTION: ATTACK]"
+
+- [ACTION: JOIN_PARTY] -> Use if you agree to follow/recruit.
+  Example: "I've got nothing better to do. Let's see if you're worth following. [ACTION: JOIN_PARTY]"
+
+- [ACTION: LEAVE] -> Use to dismiss yourself or stop following.
+  Example: "This path is too dangerous. I'm heading back. [ACTION: LEAVE]"
+
+- [ACTION: GIVE_ITEM:Item Name] -> Hand an item directly to the player. Use this for friendly trades.
+  Example: "Take this dried meat, you look like you're starving. [ACTION: GIVE_ITEM:Dried Meat]"
+
+- [ACTION: DROP_ITEM:Item Name] -> Drop an item on the ground. Use this for discarding things or if you are disgusted.
+  Example: "I have no use for this garbage. [ACTION: DROP_ITEM:Ancient Book]"
+
+- [ACTION: TAKE_ITEM:Item Name] -> Take an item from the player's inventory.
+  CRITICAL: This is an EXECUTION call. NEVER use this unless:
+  1. The player has explicitly agreed to give you the item in the chat (Trade/Gift).
+  2. You are significantly more powerful and are openly ROBBING them.
+  - DIRECTION: Player Inventory -> NPC Inventory.
+  - TRADING RULE: If you are BUYING an item from the player, you MUST use both [ACTION: TAKE_ITEM:...] and [ACTION: GIVE_CATS:...] in the same response.
+
+- [ACTION: GIVE_CATS:Amount] -> NPC pays money TO the player.
+  - DIRECTION: NPC Wallet -> Player Wallet (Player gets richer).
+  - USE FOR: Buying items from player, giving rewards, or gifts.
+  - Example: "Here is the 500 cats for that sword. [ACTION: TAKE_ITEM:Iron Club] [ACTION: GIVE_CATS:500]"
+
+- [ACTION: TAKE_CATS:Amount] -> NPC takes money FROM the player. (Deduction)
+  - DIRECTION: Player Wallet -> NPC Wallet (Player gets poorer).
+  - USE FOR: Selling items to player, bribes, taxes, or robbery.
+  - CRITICAL: Never use this until the player has explicitly agreed to the price in chat.
+  - Example: "Good, we have agreed on a price of 200 cats for the info. [ACTION: TAKE_CATS:200]"
+
+- [ACTION: FOLLOW_PLAYER] -> Use if you agree to follow the player around.
+  Example: "Lead the way, I'm right behind you. [ACTION: FOLLOW_PLAYER]"
+
+- [ACTION: IDLE] -> Use to stop following or reset to your normal behavior.
+  Example: "I'll stay here for now. [ACTION: IDLE]"
+
+- [ACTION: PATROL_TOWN] -> Use if you are stationed in a town and want to patrol the area.
+  Example: "I'll keep an eye on the perimeter. [ACTION: PATROL_TOWN]"
+
+- [ACTION: NOTIFY:Message] -> Show a global system message.
+  Example: "[ACTION: NOTIFY: The NPC looks suspiciously at your sword.]"
+
+- [ACTION: FACTION_RELATIONS: FactionName: amount] -> Change the player's relationship with a faction. 
+  CRITICAL: Must have a strong narrative reason. Negative for betrayal/hostility, positive for help/loyalty.
+  Example: "[ACTION: FACTION_RELATIONS: The Holy Nation: -5]"
+  Example: "[ACTION: FACTION_RELATIONS: United Cities: 10]"
+
+- [ACTION: SPAWN_ITEM: Template | Name | Description] -> Create a unique item (like a note or newspaper) and give it to the player.
+  Template: Base item (e.g., "Book", "Raw Meat").
+  Name: The title of the item.
+  Description: The content of the note/news.
+  Example: "Here's the morning report. [ACTION: SPAWN_ITEM: Book | The Hub Daily | Local bandits were seen near the gates today. Stay safe.]"
+  
+- [ACTION: RELEASE_PLAYER] -> Use to release the player from a cage, cage, shackles, or stop carrying them.
+  Example: "I'll get you out of those chains. [ACTION: RELEASE_PLAYER]"

@@ -1,0 +1,54 @@
+{
+    "kimi-k2.5": {
+        "provider": "openrouter",
+        "model": "moonshotai/kimi-k2.5"
+    },
+    "deepseek-v3.2": {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v3.2"
+    },
+    "glm-4.7": {
+        "provider": "openrouter",
+        "model": "z-ai/glm-4.7"
+    },
+    "grok-4.1-fast": {
+        "provider": "openrouter",
+        "model": "x-ai/grok-4.1-fast"
+    },
+    "minimax-m2.5": {
+        "provider": "openrouter",
+        "model": "minimax/minimax-m2.5"
+    },
+    "gemini-3-flash": {
+        "provider": "openrouter",
+        "model": "google/gemini-3-flash-preview"
+    },
+    "gemini-2.5-flash": {
+        "provider": "openrouter",
+        "model": "google/gemini-2.5-flash"
+    },
+    "glm-5": {
+        "provider": "nanogpt",
+        "model": "zai-org/glm-5"
+    },
+    "nano-glm-4.7": {
+        "provider": "nanogpt",
+        "model": "zai-org/glm-4.7"
+    },
+    "nano-glm-4.6-derestricted": {
+        "provider": "nanogpt",
+        "model": "GLM-4.6-Derestricted-v5"
+    },
+    "mimo-v2-flash": {
+        "provider": "openrouter",
+        "model": "xiaomi/mimo-v2-flash"
+    },
+    "player2-default": {
+        "provider": "player2",
+        "model": "default"
+    },
+    "ollama-llama3": {
+        "provider": "ollama",
+        "model": "llama3"
+    }
+}

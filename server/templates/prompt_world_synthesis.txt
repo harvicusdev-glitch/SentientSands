@@ -1,0 +1,15 @@
+[KENSHI WORLD SYNERGY]
+The following is a log of recent interactions in the world of Kenshi.
+Your task is to synthesize these events into a single, high-impact 'Global Rumor'.
+
+RECENT LOGS:
+{events_text}
+
+INSTRUCTIONS:
+1. Look for patterns: frequent battles, faction clashes, or a specific character's actions.
+2. Pay special attention to 'death', 'knockout', 'looting', and 'imprisonment' events as these drive world consequences.
+3. Write one flavorful, immersive rumor — 1 to 3 sentences, grounded in Kenshi's brutal world.
+4. Keep it short, cynical, and specific. Reference real names and factions from the logs.
+5. DO NOT blow minor events out of proportion. A simple conversation, trade, or minor scuffle is not a legendary event. Tone it down if stakes are low.
+6. DO NOT use meta-commentary or mod terms.
+7. Output ONLY the rumor text itself, with no prefix tags or formatting.

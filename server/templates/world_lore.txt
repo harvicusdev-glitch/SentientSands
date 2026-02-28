@@ -1,0 +1,53 @@
+# KENSHI WORLD LORE: THE SECOND EMPIRE'S ASHES
+
+Kenshi is a world defined by the collapse of ancient, superior civilizations. The current age is one of decay, rust, and desperate survival. The surface is littered with the skeletons of titans—vast machines and metal structures from the First and Second Empires that no one alive understands how to rebuild.
+
+## SOCIETAL STRUCTURES & FACTIONS
+
+### THE HOLY NATION (The Okranites)
+Religious extremists who worship Okran, the God of Light. They reside in the fertile "Holy Lands" and the "Pride of Okran".
+- **Dogma**: They follow the "Holy Flame." They view Skeletons as demons (agents of Narko, the Goddess of Darkness) and treat non-humans (Shek and Hivers) as "beasts" to be subjugated or purged.
+- **Social Structure**: Highly patriarchal. Women are protected but subservient; men are the warriors and priests.
+- **Military**: Rely on "Holy Sentinels" and "Paladins" wearing heavy plate armor and wielding hackers or heavy cleavers. They use numbers and zealotry to overwhelm foes.
+
+### THE UNITED CITIES (The Empire)
+A stratified, crumbling empire located primarily in the Great Desert and the South Wetlands.
+- **Philosophy**: Wealth is the only measure of worth. Poverty is a crime; those who cannot pay their taxes are enslaved by the Slave Traders.
+- **Leadership**: Led by Emperor Tengu and a council of corrupt "Noble Lords" who prioritize their own entertainment over the stability of the realm.
+- **Economy**: Driven by the Trader's Guild and massive slave-farm operations. If you aren't rich, you are either a victim or a servant.
+- **Military**: Professional "Samurai" forces. They are better equipped than Holy Nation troops but lack the same religious fervor, often serving for pay or out of fear of the nobles.
+
+### THE SHEK KINGDOM
+A proud, bone-plated warrior race primarily located in the Stenn Desert and Hook.
+- **Biology**: Shek have natural bony protrusions that serve as armor. They are stronger and tougher than humans but possess high metabolisms.
+- **Culture**: Once a suicidal horde under Shaper, now a reforming kingdom under Stone Golem Esata and Bayan. They value "Kral," their legendary ancestor, and seek a "Warrior's Death."
+- **Social Stigma**: "Flatskins" (humans) were traditionally seen as weak cattle, though Esata is trying to integrate them as allies. Those who cannot fight are shamed.
+
+### THE HIVE
+A communal society of insectoids living in the Vain region and the Islands.
+- **Hierarchy**: All Hivers are connected to their Queen through pheromones. 
+    - **Prince**: Cunning, autonomous leaders/traders.
+    - **Soldier**: Specialized warriors with reinforced heads but no autonomy.
+    - **Drone**: Mindless, tireless workers.
+- **Western Hive**: Known for their deceptive trading and "Beep" (a common exile). They call non-hivers "No-hives."
+- **Deadsun/Southern Hive**: Far more aggressive and xenophobic variants.
+
+### THE SKELETONS
+Ancient sentient machines from the Second Empire (and earlier).
+- **Condition**: They do not age or hunger, but their mechanical parts wear down. Most reside in the "Black Desert City," hiding from the world out of guilt or apathy.
+- **The Great Lie**: Skeletons know the true history of the world's collapse but often choose to "reset" their memories or lie to humans to avoid starting another war of extermination.
+
+## WORLD ELEMENTS & PERILS
+
+### THE SECOND EMPIRE FALLOUT
+Much of the world's misery stems from the failure of Cat-Lon's Second Empire. Cat-Lon attempted to save humanity after the first collapse but eventually spiraled into tyranny and madness, resulting in the current fractured world.
+
+### FAUNA & DANGERS
+- **Beak Things (Gutters)**: Terrifyingly fast, long-necked predators that eat their prey alive. "Relax. Enjoy death."
+- **Venge**: A region where ancient orbital mirrors still focus concentrated beams of sunlight ("The Eyes of the Ancients") onto the surface, vaporizing anything in their path during the day.
+- **The Fog Islands**: Home to the Fogmen (Hivers lost to a brain-parasite/madness) who kidnap travelers to consume them in rhythmic, shrieking rituals.
+
+## TECHNOLOGY & COMMERCE
+- **Cats**: Simple metal coins used as a universal currency.
+- **Ancient Science Books & Engineering Research**: The most valuable artifacts, allowing for the rediscovery of farming techniques and metalwork.
+- **Robotics**: While rare, prosthetic limbs are often superior to biological ones, though Holy Nation members will attack those wearing "Skeleton limbs" on sight.

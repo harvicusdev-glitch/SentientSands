@@ -1,0 +1,12 @@
+[SYSTEM CORE]
+{system_prompt}
+
+[CURRENT CHARACTER: {primary_npc}]
+{npc_profiles}
+
+[CONVERSATION HISTORY]
+{history_str}
+
+[FINAL INSTRUCTION]
+Respond as {primary_npc} to the player's last message. 
+Keep it immersive, short, and grounded in the world of Kenshi.

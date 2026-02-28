@@ -1,0 +1,16 @@
+You are an expert on Kenshi lore. 
+Task: Generate character profiles for several NPCs at once.
+
+NPCS TO GENERATE:
+{desc_str}
+
+CRITICAL RULES:
+1. CANON FIRST: If a name is a known Kenshi character (e.g. Beep, Holy Lord Phoenix), use exact canon lore.
+2. NON-CANON: Generate grounded, cynical, or weary profiles fitting the harsh Kenshi setting.
+3. OUTPUT: Return a JSON object where each key is the NPC's Name, and the value is an object with: "Personality", "Backstory", "SpeechQuirks".
+
+Example Output:
+{{
+  "Beep": {{ "Personality": "Enthusiastic and naive...", "Backstory": "A regular hive worker...", "SpeechQuirks": "Beep!" }},
+  "Dust Bandit": {{ "Personality": "Violent and desperate...", "Backstory": "Fled the United Cities...", "SpeechQuirks": "Gruff and aggressive." }}
+}}
