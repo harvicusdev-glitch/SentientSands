@@ -15,27 +15,24 @@ Before installing Sentient Sands, you must have the following dependencies insta
 
 ### Step 1: Install RE_Kenshi
 1. Download the latest release of `RE_Kenshi`.
-2. Extract the contents directly into your **root Kenshi folder** (this is the folder containing `kenshi_x64.exe`).
+2. Extract the contents (`RE_Kenshi.exe`, `RE_Kenshi.dll`, etc.) directly into your **root Kenshi folder** (the one containing `kenshi_x64.exe`).
 
-### Step 2: Install Sentient Sands
+### Step 2: Install KenshiLib
+1. Download the latest release of `KenshiLib`.
+2. Extract the `KenshiLib` folder into your **root Kenshi folder**.
+   *(Expected path: `...\Kenshi\mods\KenshiLib\KenshiLib.mod`)*
+
+### Step 3: Install Sentient Sands
 1. Download the Sentient Sands release package.
-2. Copy the entire `SentientSands` folder into your `Kenshi/mods/` directory. 
-   *(Expected path: `...\Kenshi\mods\SentientSands\`)*
-3. Ensure that `SentientSands.dll` is located in your `Kenshi\mods\SentientSands\` directory.
-
-### Step 3: Setup Python Environment
-Because this mod connects to AI services, it runs a background Python server. Since bundled download scripts can be flagged by anti-virus software, you need to provide your own standard Python installation.
-
-1. Download and install **Python 3.10** (or newer) from [python.org](https://www.python.org/downloads/). **Make sure to check "Add python.exe to PATH" during installation!**
-2. Navigate to your mod folder: `...\Kenshi\mods\SentientSands\`
-3. Double-click `Setup_Dependencies.bat`.
-4. The script will quickly download the required packages (`flask`, `requests`, `tkinter-embed`).
+2. Copy the entire `SentientSands` folder into your `Kenshi/mods/` directory.
+   *(Expected path: `...\Kenshi\mods\SentientSands\SentientSands.mod`)*
+3. Ensure that `SentientSands.dll` is present in your `Kenshi\mods\SentientSands\` directory. Our `RE_Kenshi.json` file will automatically instruct RE_Kenshi to load it from here.
 
 ### Step 4: Launching the Game
 🚨 **CRITICAL REQUIREMENT** 🚨
-You **MUST** launch the game using `RE_Kenshi.exe`. If you launch the game using the standard Kenshi exe or through Steam directly (without pointing it to RE_Kenshi), the mod will fail to load and the AI server will not start.
+You **MUST** launch the game using **`RE_Kenshi.exe`**. If you launch the game using the standard Kenshi launcher or through Steam directly (without pointing it to RE_Kenshi), the mod will fail to load, and the AI server will not start.
 
-Ensure Sentient Sands and KenshiLib are checked in the Kenshi mod launcher.
+Ensure **Sentient Sands** and **KenshiLib** are both checked in the Kenshi mod launcher.
 
 ---
 
