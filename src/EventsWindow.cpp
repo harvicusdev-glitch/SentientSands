@@ -107,8 +107,7 @@ void OnEventsSelect(MyGUI::ListBox *sender, size_t index) {
   if (g_eventsText) {
     g_eventsText->removeAllItems();
     g_eventsText->addItem(
-        Utf8ToWide(T("Loading event details for Day ") + dayId + "...")
-            .c_str());
+        Utf8ToWide(T("Reading global event: ") + dayId).c_str());
   }
 
   EventTask *t = new EventTask();

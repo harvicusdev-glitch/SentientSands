@@ -127,14 +127,7 @@ void OnSettingsAmbientToggleClick(MyGUI::Widget *sender) {
 }
 
 void OnSettingsOpenConfigClick(MyGUI::Widget *sender) {
-  char path[MAX_PATH];
-  GetModuleFileNameA(NULL, path, MAX_PATH);
-  std::string dir = path;
-  size_t lastBackslash = dir.find_last_of("\\/");
-  if (lastBackslash != std::string::npos) {
-    dir = dir.substr(0, lastBackslash);
-  }
-  std::string configPath = dir + "\\mods\\SentientSands\\server\\config";
+  std::string configPath = g_modRoot + "\\server\\config";
   ShellExecuteA(NULL, "open", configPath.c_str(), NULL, NULL, SW_SHOWDEFAULT);
 }
 
@@ -368,8 +361,8 @@ void CreateSettingsUI() {
       "Kenshi_ComboBox", 0.4f, y, 0.2f, 0.06f, MyGUI::Align::Top,
       "SentientSands_SetHotkeyCombo");
   g_settingsHotkey->setComboModeDrop(true);
-  const char *hotkeys[] = {"\\", "[", "P", "J", "U", "K"};
-  for (int i = 0; i < 6; i++) {
+  const char *hotkeys[] = {"\\", "[", "P", "T", "J", "U", "K"};
+  for (int i = 0; i < 7; i++) {
     g_settingsHotkey->addItem(Utf8ToWide(hotkeys[i]).c_str());
     if (std::string(hotkeys[i]) == g_chatHotkeyStr) {
       g_settingsHotkey->setIndexSelected(i);

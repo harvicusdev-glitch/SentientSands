@@ -1,3 +1,19 @@
+# Sentient Sands - Kenshi AI Mod
+# Copyright (C) 2026 Sentient Sands Team
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import os
 import ctypes
 import json
@@ -70,6 +86,9 @@ ACTIVE_CAMPAIGN = "Default"      # Default
 CAMPAIGNS_DIR = os.path.join(KENSHI_SERVER_DIR, "campaigns")
 TEMPLATES_DIR = os.path.join(KENSHI_SERVER_DIR, "templates")
 CHARACTERS_DIR = os.path.join(KENSHI_SERVER_DIR, "characters") # Initial fallback
+CURRENT_CAMPAIGN = "Default" # Global track for UI
+LAST_GENERATE_TIME = 0 # Track last rumor timestamp
+GLOBAL_SYNTHESIS_INTERVAL = 60 # Default minutes
 
 EVENT_HISTORY = []
 PROFILES_IN_PROGRESS = set()
@@ -95,8 +114,97 @@ ANIMAL_RACES = [
     "Bonedog", "Boneyard Wolf", "Garru", "Beak Thing", "Gorillo",
     "Landbat", "Goat", "Bull", "Leviathan", "Blood Spider", "Skin Spider",
     "Cave Crawler", "Crab", "Raptor", "Darkfinger", "Thrasher", "Cleaner",
-    "Crimper", "Skimmer", "Beeler", "Bat", "Spider", "Wolf"
+    "Crimper", "Skimmer", "Beeler", "Bat", "Spider", "Wolf",
+    "Dog", "Turtle", "Cleanser", "Gurgler", "Fishman"
 ]
+
+# --- FACTION METADATA & LORE ENHANCEMENTS ---
+FACTION_METADATA = {
+    "The Holy Nation": {
+        "Leader": "Holy Lord Phoenix LXII",
+        "Desc": "A xenophobic, religious group worshipping Okran. They value human purity and despise Skeletons and non-humans."
+    },
+    "United Cities": {
+        "Leader": "Emperor Tengu",
+        "Desc": "A vast, corrupt empire where wealth is law. They rely on slavery and the Traders Guild."
+    },
+    "Shek Kingdom": {
+        "Leader": "Esata the Stone Golem",
+        "Desc": "A warrior race obsessed with honor and strength, currently attempting to move away from suicidal traditions."
+    },
+    "Traders Guild": {
+        "Leader": "Longen",
+        "Desc": "A powerful commercial alliance that controls much of the world's economy through slave labor and trade."
+    },
+    "Anti-Slavers": {
+        "Leader": "Tinfist",
+        "Desc": "A group of martial-artist Skeletons and humans dedicated to the total abolition of slavery."
+    },
+    "Second Empire": {
+        "Leader": "Mad Cat-Lon",
+        "Desc": "The fallen remains of a once-great robotic empire, now reduced to madness and decay in the Ashlands."
+    },
+    "Western Hive": {
+        "Leader": "The Hive Queen",
+        "Desc": "A reclusive insectoid society focused on industrious trade and pheromone-driven loyalty to their Queen."
+    },
+    "Southern Hive": {
+        "Leader": "The Queen of the South",
+        "Desc": "A territorial and aggressive Hive variant that views all outsiders as food for their King."
+    },
+    "Flotsam Ninjas": {
+        "Leader": "Moll",
+        "Desc": "Fugitive women who escaped the Holy Nation and now wage a guerrilla war against Lord Phoenix."
+    },
+    "Shinobi Thieves": {
+        "Leader": "The Big Boss",
+        "Desc": "A global network of spies, smugglers, and fences with safehouses in most major cities."
+    },
+    "Nameless": {
+        "Leader": "The Player",
+        "Desc": "A rising group of wanderers who are beginning to make their mark on the world."
+    },
+    "Deadcat": {
+        "Leader": "None (Scattered remnant)",
+        "Desc": "Survivors of a once-proud fishing nation, now largely wiped out by Cannibals."
+    },
+    "Mongrel": {
+        "Leader": "None (The High Shack)",
+        "Desc": "A haven for outcasts and 'Fog-free' exiles in the heart of the Fog Islands."
+    },
+    "Red Sabres": {
+        "Leader": "Red Sabre Leader",
+        "Desc": "Desperate bandits and deserters who raid travelers in the Swamp."
+    },
+    "Swamp Ninjas": {
+        "Leader": "Shade",
+        "Desc": "A skilled group of ninja outlaws specializing in swamp combat and drug running."
+    }
+}
+
+def get_faction_info(faction_name):
+    """Returns a formatted string describing the faction and its leader."""
+    if not faction_name or faction_name == "Unknown":
+        return "Unknown Faction (Remnant or Drifter)"
+    
+    # Normalization for Player and various squad names
+    clean_name = faction_name
+    if "Player" in faction_name or faction_name == "Nameless":
+        clean_name = "Nameless"
+    
+    meta = FACTION_METADATA.get(clean_name)
+    if not meta:
+        # Case-insensitive fallback
+        for k, v in FACTION_METADATA.items():
+            if k.lower() in clean_name.lower() or clean_name.lower() in k.lower():
+                meta = v
+                break
+    
+    if meta:
+        leader_part = f" (Led by {meta['Leader']})" if meta.get('Leader') else ""
+        return f"{clean_name}{leader_part}: {meta['Desc']}"
+    
+    return f"{faction_name}: A minor or specialized group in the wasteland."
 
 def get_config_radii():
     settings = load_settings()
@@ -123,6 +231,40 @@ def sanitize_llm_text(text):
     text = text.replace('\\n', '\n')  # Catch literal escaped newlines
     text = text.replace('\\r', '')    # Catch literal escaped carriage returns
     return text
+
+def robust_json_parse(text):
+    """Attempt to parse JSON while handling common LLM formatting errors."""
+    if not text: return None
+    
+    # 1. Basic cleaning
+    text = text.strip()
+    
+    # 2. Extract content between first { and last }
+    start = text.find('{')
+    end = text.rfind('}')
+    if start == -1 or end == -1:
+        return None
+    
+    json_str = text[start:end+1]
+    
+    # 3. Remove trailing commas within arrays/objects using regex
+    json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+    
+    # 4. Filter out any single-line comments // or multi-line /* */
+    json_str = re.sub(r'//.*?\n', '\n', json_str)
+    json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+    
+    try:
+        return json.loads(json_str)
+    except Exception as eFirst:
+        # 5. Attempt: Sanitize unescaped quotes in middle of strings
+        # Looks for " surrounded by letters/numbers which are usually internal dialogue quotes
+        try:
+            sanitized = re.sub(r'(?<=[a-zA-Z0-9])"(?=[a-zA-Z0-9\s])', "'", json_str)
+            return json.loads(sanitized)
+        except:
+            logging.error(f"ROBUST_JSON_PARSE: Final failure on string: {json_str[:200]}...")
+            raise eFirst
 
 # Setup logging
 _log_fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -193,7 +335,7 @@ def kill_old_servers():
 
 kill_old_servers()
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(KENSHI_SERVER_DIR, "templates"))
 # JSON_AS_ASCII = True is default, which is safer for our DLL pipe
 app.config['JSON_AS_ASCII'] = True
 
@@ -213,7 +355,7 @@ def handle_exception(e):
 # 3. Load Configurations
 def load_configs():
     global MODELS_CONFIG, PROVIDERS_CONFIG, NAMES_CONFIG
-    logging.info("Checking configurations...")
+    logging.debug("Checking configurations...")
     
     # Create config dir if missing
     config_dir = os.path.join(KENSHI_SERVER_DIR, "config")
@@ -224,7 +366,7 @@ def load_configs():
         try:
             with open(MODELS_PATH, "r") as f:
                 MODELS_CONFIG = json.load(f)
-            logging.info(f"Loaded {len(MODELS_CONFIG)} models.")
+            logging.debug(f"Loaded {len(MODELS_CONFIG)} models.")
         except Exception as e:
             logging.error(f"Failed to load models.json: {e}")
             
@@ -232,7 +374,7 @@ def load_configs():
         try:
             with open(PROVIDERS_PATH, "r") as f:
                 PROVIDERS_CONFIG = json.load(f)
-            logging.info(f"Loaded {len(PROVIDERS_CONFIG)} providers.")
+            logging.debug(f"Loaded {len(PROVIDERS_CONFIG)} providers.")
         except Exception as e:
             logging.error(f"Failed to load providers.json: {e}")
 
@@ -240,7 +382,7 @@ def load_configs():
         try:
             with open(NAMES_PATH, "r") as f:
                 NAMES_CONFIG = json.load(f)
-            logging.info(f"Loaded {len(NAMES_CONFIG)} gender pools from names.json.")
+            logging.debug(f"Loaded {len(NAMES_CONFIG)} gender pools from names.json.")
         except Exception as e:
             logging.error(f"Failed to load names.json: {e}")
 
@@ -249,7 +391,7 @@ def load_configs():
             global GENERIC_CONFIG
             with open(GENERIC_NAMES_PATH, "r") as f:
                 GENERIC_CONFIG = json.load(f)
-            logging.info(f"Loaded {len(GENERIC_CONFIG.get('prefixes', []))} generic prefixes from generic_names.json.")
+            logging.debug(f"Loaded {len(GENERIC_CONFIG.get('prefixes', []))} generic prefixes from generic_names.json.")
         except Exception as e:
             logging.error(f"Failed to load generic_names.json: {e}")
 
@@ -259,7 +401,7 @@ def load_configs():
         try:
             with open(LOCALIZATION_PATH, "r", encoding="utf-8") as f:
                 LOCALIZATION_CONFIG = json.load(f)
-            logging.info(f"Loaded {len(LOCALIZATION_CONFIG)} language localizations.")
+            logging.debug(f"Loaded {len(LOCALIZATION_CONFIG)} language localizations.")
         except Exception as e:
             logging.error(f"Failed to load localization.json: {e}")
 
@@ -399,7 +541,7 @@ def send_to_pipe(cmd):
     """
     Robust pipe transmission. Prepends CMD: if not already present.
     """
-    if not (cmd.startswith("CMD:") or cmd.startswith("NPC_") or cmd.startswith("PLAYER_") or cmd.startswith("SHOW_HISTORY")):
+    if not (cmd.startswith("CMD:") or cmd.startswith("NPC_") or cmd.startswith("PLAYER_") or cmd.startswith("SHOW_HISTORY") or cmd.startswith("NOTIFY:")):
         cmd = "CMD: " + cmd
         
     try:
@@ -446,9 +588,9 @@ def is_npc_name_generic(name):
     prefixes = GENERIC_CONFIG.get("prefixes", [])
     keywords = GENERIC_CONFIG.get("keywords", [])
     
-    # Exact matches for prefixes (case-insensitive)
+    # Exact or substring matches for prefixes (case-insensitive)
     lower_clean = clean_name.lower()
-    if any(p.lower() == lower_clean for p in prefixes):
+    if any(p.lower() in lower_clean for p in prefixes):
         return True
         
     # Keyword substring matches
@@ -543,6 +685,35 @@ def get_current_time_prefix():
         return f"[Day {day}, {hour:02d}:{minute:02d}] "
     return ""
 
+def generate_relation_bar(rel):
+    """Generates a text-based visual representation of the NPC's relation to the player."""
+    try:
+        rel = int(rel)
+    except:
+        rel = 0
+    
+    # Scale: -100 to 100
+    # Normalize -100..100 to 0..20 dashes
+    pos = int((rel + 100) / 10)
+    pos = max(0, min(20, pos))
+    
+    bar = list("---------------------")
+    bar[pos] = "X" # Marker
+    bar_str = "".join(bar)
+    
+    # Status Label
+    label = "NEUTRAL"
+    if rel <= -90: label = "ARCH-ENEMY"
+    elif rel <= -60: label = "HOSTILE"
+    elif rel <= -25: label = "UNFRIENDLY"
+    elif rel >= 90: label = "SOUL-MATE"
+    elif rel >= 60: label = "ALLIED"
+    elif rel >= 25: label = "FRIENDLY"
+    
+    # Add color tags for MyGUI (if supported, using # prefix)
+    # Actually, let's keep it plain text for max compatibility across UI versions
+    return f"RELATION: [{label}] [{bar_str}] ({rel:+} pts)"
+
 def is_future_timestamp(line, cur_d, cur_h, cur_m):
     """Checks if a string containing [Day X, HH:MM] is ahead of the provided current time."""
     match = re.search(r"\[Day (\d+)(?:, (\d+):(\d+))?\]", line)
@@ -599,12 +770,31 @@ def build_detailed_context_string(npc_name, char_data=None):
     race = ctx.get("race") or ctx.get("Race", "Unknown")
     gender = ctx.get("gender") or ctx.get("Sex", "Unknown")
     faction = ctx.get("faction") or ctx.get("Faction", "Unknown")
+    job = ctx.get("job") or ctx.get("Job", "None")
     money = ctx.get("money") or 0
     relation = ctx.get("relation")
 
     lines.append(f"- RACE: {race}")
     lines.append(f"- SEX: {gender}")
     lines.append(f"- FACTION: {faction}")
+    
+    # Shopkeeper / Trader Status
+    is_trader = ctx.get("is_trader", False)
+    in_shop = ctx.get("in_shop", False)
+    building_name = ctx.get("building_name", "Unknown")
+    
+    if is_trader or in_shop or "shopkeeper" in job.lower():
+        shop_note = f"ROLE: {npc_name} is a SHOPKEEPER/TRADER."
+        if in_shop:
+            shop_note += f" They are currently IN THEIR SHOP ({building_name})."
+        shop_note += " They are authorized to sell items and cats from their inventory in exchange for the player's cats or items."
+        lines.append(shop_note)
+    
+    # Leader Status
+    if ctx.get("is_leader", False):
+        lines.append(f"ROLE: {npc_name} is the LEADER of their faction. They speak with authority and make final decisions for their group.")
+
+    lines.append(f"- CURRENT GOAL/JOB: {job}")
     if relation is not None:
         lines.append(f"- FACTION RELATION TO PLAYER: {relation} (Stance: {'ALLIED' if relation >= 50 else 'FRIENDLY' if relation > 0 else 'NEUTRAL' if relation == 0 else 'HOSTILE' if relation <= -30 else 'UNFRIENDLY'})")
     lines.append(f"- MONEY: {money} cats")
@@ -744,19 +934,6 @@ def build_detailed_context_string(npc_name, char_data=None):
             if p_equip:
                 p_desc += f" | Visible Gear: {p_equip}"
             lines.append(p_desc)
-
-    # Squad Hub (if player talking to self/squad)
-    if "your squad" in npc_name.lower():
-        squad_list = ctx.get("player", {}).get("squad", [])
-        if squad_list:
-            lines.append(f"SQUAD MEMBERS PRESENT: {', '.join(squad_list)}")
-            lines.append("CONTEXT: You are facilitating a group discussion. The player is talking to the group (or themselves). Respond as a mix of relevant squad members.")
-            lines.append("CRITICAL RULES for SQUAD TALK:")
-            lines.append("- ONLY use character names from the 'SQUAD MEMBERS PRESENT' list.")
-            lines.append("- DO NOT invent new characters or use names not in the list.")
-            lines.append("- EACH SPEAKER MUST BE ON A NEW LINE.")
-            lines.append("- FORMAT: 'Name: Dialogue'")
-            lines.append("- KEEP IT SHORT. One sentence per speaker.")
 
     return "\n".join(lines)
 
@@ -950,6 +1127,8 @@ def format_player_status(player_ctx):
     """Summarizes player vitals and faction into a readable block."""
     if not player_ctx: return "No status data."
     res = "PLAYER STATUS:\n"
+    res += f"- Race: {player_ctx.get('race', 'Unknown')}\n"
+    res += f"- Gender: {player_ctx.get('gender', 'male')}\n"
     med = player_ctx.get("medical", {})
     if med:
         hunger = med.get("hunger", 300)
@@ -1057,6 +1236,17 @@ def build_system_prompt(player_name="Drifter"):
             elif biome:
                 location_tag = biome
 
+    # Language instruction — ensures all providers respect the UI language setting,
+    # not just player2 which happens to auto-detect from context.
+    language = settings.get("language", "English")
+    language_instruction = ""
+    if language and language.lower() != "english":
+        language_instruction = f"\nLANGUAGE: You MUST respond ONLY in {language}. Do not switch to English under any circumstances.\n"
+
+    # Get player identity details from context
+    player_race = PLAYER_CONTEXT.get("race", "Unknown") if PLAYER_CONTEXT else "Unknown"
+    player_gender = PLAYER_CONTEXT.get("gender", "male") if PLAYER_CONTEXT else "male"
+
     prompt = f"""{npc_base}
 
 CURRENT LOCATION: {location_tag}
@@ -1067,6 +1257,8 @@ WORLD LORE:
 {events_block}
 
 PLAYER CHARACTER ({player_name}):
+RACE: {player_race}
+GENDER: {player_gender}
 {player_bio}
 
 {faction_block}
@@ -1084,8 +1276,9 @@ RESPONSE FORMAT RULES:
 {rules}
 
 {action_tags}
-"""
+{language_instruction}"""
     return prompt.strip()
+
 
 # Initial build
 SYSTEM_PROMPT = build_system_prompt()
@@ -1143,12 +1336,16 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
     base_url = provider_config.get("base_url").rstrip("/")
     target_url = f"{base_url}/chat/completions"
 
+    # Default headers
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "X-Title": "Sentient Sands Mod",
-        "HTTP-Referer": "https://github.com/harvicusdev-glitch/SentientSands"
+        "Content-Type": "application/json"
     }
+
+    # OpenRouter specific headers (encouraged by their API)
+    if "openrouter.ai" in target_url:
+        headers["X-Title"] = "Sentient Sands Mod"
+        headers["HTTP-Referer"] = "https://github.com/harvicusdev-glitch/SentientSands"
 
     # player2 specific header
     if provider_name == "player2":
@@ -1171,7 +1368,16 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
             elapsed = time.time() - start_time
             
             if response.status_code == 200:
-                data = response.json()
+                if not response.text.strip():
+                    logging.error(f"Attempt {attempt+1}: Provider returned 200 OK but the response body is EMPTY.")
+                    raise Exception("Empty response from provider (possible content filter or token limit?)")
+                try:
+                    data = response.json()
+                except json.JSONDecodeError as je:
+                    logging.error(f"Attempt {attempt+1} JSON Error: Content provided by provider is not valid JSON despite 200 OK status.")
+                    logging.error(f"RESPONSE PREVIEW (200 OK): {response.text[:500]}")
+                    raise Exception(f"Invalid JSON response from provider: {str(je)}")
+
                 choices = data.get('choices', [])
                 if not choices:
                     logging.warning(f"API Success but empty choices: {data}")
@@ -1305,28 +1511,38 @@ def generate_character_profile(name, context=""):
         race = ctx_data.get('race', race)
         gender = ctx_data.get('gender', gender)
         faction = ctx_data.get('faction', faction)
+        if faction == "Unknown":
+            faction = ctx_data.get('factionID', "Unknown")
+        origin_faction = ctx_data.get('origin_faction', "Unknown")
+        job = ctx_data.get('job', "None")
     
     # Fallback to LIVE_CONTEXTS if still unknown
     if race == "Unknown": race = live_ctx.get('race', 'Unknown')
     if gender == "Unknown": gender = live_ctx.get('gender', 'Unknown')
-    if faction == "Unknown": faction = live_ctx.get('faction', 'Unknown')
-
-    # All three fields are required for a meaningful profile.
-    # If any are still unknown after checking context + LIVE_CONTEXTS, skip
-    # generation entirely — the NPC hasn't been properly registered yet.
-    # get_character_data will use a transient placeholder instead.
-    missing = [k for k, v in {"race": race, "gender": gender, "faction": faction}.items() if v in ("Unknown", None, "")]
-    if missing:
-        logging.info(f"Skipping profile for {name}: missing {', '.join(missing)} — will generate on next encounter with full data.")
+    if faction == "Unknown": 
+        faction = live_ctx.get('faction', 'Unknown')
+        if faction == "Unknown":
+            faction = live_ctx.get('factionID', "Unknown")
+    
+    if origin_faction == "Unknown": origin_faction = live_ctx.get('origin_faction', 'Unknown')
+    if job == "None": job = live_ctx.get('job', 'None')
+    
+    # RELAXED CONSTRAINTS: Only skip if we truly have nothing or the name is generic.
+    # Modded factions often fail to report pretty names through standard hooks.
+    if name in ("Unknown", "Someone", "Unknown Entity"):
+        logging.info(f"Skipping profile: Name is {name}.")
         return None
 
-    logging.info(f"Generating rich profile for {name} ({gender} {race}, Faction: {faction})...")
+
+    logging.info(f"Generating rich profile for {name} ({gender} {race}, Base Faction: {origin_faction}, Job: {job})...")
     
     template = load_prompt_component("prompt_profile_generation.txt", """You are an expert on Kenshi lore.
 Task: Generate a character profile for the NPC named "{name}".
 SEX: {gender}
 RACE: {race}
-FACTION: {faction}
+ORIGIN FACTION: {origin_faction}
+CURRENT FACTION: {faction}
+JOB: {job}
 DATA: {context}
 
 CRITICAL RULES:
@@ -1335,19 +1551,29 @@ CRITICAL RULES:
 3. PERSONALITY: The character MUST speak and behave according to their sex ({gender}) and race ({race}). 
 4. OUTPUT: JSON only with keys: "Personality", "Backstory", "SpeechQuirks".
 """)
-    prompt = template.format(name=name, gender=gender, race=race, faction=faction, context=context)
+    f_info = get_faction_info(faction)
+    o_info = get_faction_info(origin_faction)
+
+    prompt = template.format(name=name, gender=gender, race=race, faction=f_info, origin_faction=o_info, job=job, context=context)
+    
+    # Apply language instruction for profile generation
+    settings = load_settings()
+    language = settings.get("language", "English")
+    if language and language.lower() != "english":
+        prompt += f"\nLANGUAGE: The JSON values ('Personality', 'Backstory', 'SpeechQuirks') MUST be written entirely in {language}. Do not use English.\n"
     
     messages = [{"role": "user", "content": prompt}]
     response_text = call_llm(messages, max_tokens=600, temperature=0.7)
     
     if response_text:
         try:
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group(0))
+            result = robust_json_parse(response_text)
+            if result:
                 # Add race/faction to result for get_character_data
                 result["Race"] = race
                 result["Faction"] = faction
+                result["OriginFaction"] = origin_faction
+                result["Job"] = job
                 result["Sex"] = gender
                 return result
         except Exception as e:
@@ -1359,6 +1585,8 @@ CRITICAL RULES:
         "SpeechQuirks": "None.",
         "Race": race,
         "Faction": faction,
+        "OriginFaction": origin_faction,
+        "Job": job,
         "Sex": gender
     }
 
@@ -1393,7 +1621,8 @@ def generate_batch_profiles(npc_list):
         race = npc.get('race', 'Unknown')
         gender = npc.get('gender', 'Unknown')
         faction = npc.get('faction', 'Unknown')
-        descriptions.append(f"- Name: {name}, Sex: {gender}, Race: {race}, Faction: {faction}")
+        f_info = get_faction_info(faction)
+        descriptions.append(f"- Name: {name}, Sex: {gender}, Race: {race}, Faction: {f_info}")
     
     desc_str = "\n".join(descriptions)
     
@@ -1410,15 +1639,20 @@ CRITICAL RULES:
 """)
     prompt = template.format(desc_str=desc_str)
     
+    # Apply language instruction for batch generation
+    settings = load_settings()
+    language = settings.get("language", "English")
+    if language and language.lower() != "english":
+        prompt += f"\nLANGUAGE: All generated profile values ('Personality', 'Backstory', 'SpeechQuirks') MUST be written entirely in {language}. Do not use English for the values.\n"
+    
     messages = [{"role": "user", "content": prompt}]
     # We allow more tokens for batch
     response_text = call_llm(messages, max_tokens=1500, temperature=0.7)
     
     if response_text:
         try:
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                batch_results = json.loads(json_match.group(0))
+            batch_results = robust_json_parse(response_text)
+            if batch_results:
                 for npc in npc_list:
                     raw_name = npc.get('name', 'Unknown')
                     clean_name = raw_name.split('|')[0] if '|' in raw_name else raw_name
@@ -1428,9 +1662,15 @@ CRITICAL RULES:
                     profile = batch_results.get(clean_name) or batch_results.get(raw_name)
                     
                     if not profile:
-                        # Case-insensitive fallback
+                        # Case-insensitive and pipe-resilient fallback
+                        clean_low = clean_name.lower()
+                        raw_low = raw_name.lower()
                         for k, v in batch_results.items():
-                            if k.lower() == clean_name.lower() or k.lower() == raw_name.lower():
+                            k_low = k.lower()
+                            # Strip ID from LLM key if it included it
+                            k_clean_low = k_low.split('|')[0].strip() if '|' in k_low else k_low.strip()
+                            
+                            if k_low == clean_low or k_low == raw_low or k_clean_low == clean_low:
                                 profile = v
                                 break
                     
@@ -1449,11 +1689,13 @@ CRITICAL RULES:
                             "Race": npc.get('race', 'Unknown'),
                             "Sex": npc.get('gender', 'Unknown'),
                             "Faction": npc.get('faction') or npc.get('Faction') or 'Unknown',
+                            "OriginFaction": npc.get('origin_faction', 'Unknown'),
+                            "Job": npc.get('job', 'None'),
                             "Personality": profile.get("Personality", "A weary traveler."),
                             "Backstory": profile.get("Backstory", "Trying to survive in the harsh desert."),
                             "SpeechQuirks": profile.get("SpeechQuirks", "None."),
                             "ConversationHistory": [],
-                            "Relation": 0
+                            "Relation": int(float(npc.get("relation", 0)) / 2)
                         }
                         save_character_data(storage_id, data)
                         logging.info(f"BATCH: Saved profile for {clean_name} (ID: {storage_id})")
@@ -1481,14 +1723,17 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                 ctx_data = json.loads(context)
             except:
                 pass
+    if not ctx_data and live_ctx:
+        ctx_data = live_ctx
     
     # PERSISTENCE UPGRADE: Force Name-only storage.
     # This ignores any volatile or faction-appended IDs from the context.
+    name = str(name).strip()
     storage_id = name
     
     # Clean the ID if it's the Name|ID format
     if storage_id and '|' in str(storage_id):
-        storage_id = str(storage_id).split('|')[0]
+        storage_id = str(storage_id).split('|')[0].strip()
 
 
     # Sanitize for filesystem
@@ -1510,10 +1755,13 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
     # Schema Migration for legacy files
     if data:
         if "ConversationHistory" not in data: data["ConversationHistory"] = []
-        if "Relation" not in data: data["Relation"] = 0
+        if "Relation" not in data: 
+            data["Relation"] = int(float(ctx_data.get("relation", 0)) / 2) if ctx_data else 0
         if "Race" not in data: data["Race"] = "Unknown"
         if "Sex" not in data: data["Sex"] = "Unknown"
         if "Faction" not in data: data["Faction"] = "Unknown"
+        if "OriginFaction" not in data: data["OriginFaction"] = "Unknown"
+        if "Job" not in data: data["Job"] = "None"
 
     # If we have context, try to update race/faction if they are unknown or missing
     ctx_data = {}
@@ -1548,6 +1796,18 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                     data["Faction"] = current_faction
                     needs_save = True
 
+                current_origin = ctx_data.get("origin_faction", "Unknown")
+                if data.get("OriginFaction") == "Unknown" and current_origin != "Unknown":
+                    logging.info(f"Updating OriginFaction for {name}: {current_origin}")
+                    data["OriginFaction"] = current_origin
+                    needs_save = True
+
+                current_job = ctx_data.get("job", "None")
+                if data.get("Job") in ("None", "Unknown") and current_job not in ("None", "Unknown"):
+                    logging.info(f"Updating Job for {name}: {current_job}")
+                    data["Job"] = current_job
+                    needs_save = True
+
                 # Force-save immediately when we correct previously-unknown metadata
                 # (bypasses should_save_profile which would skip generic-content profiles)
                 if needs_save:
@@ -1559,34 +1819,40 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
     if not data:
         # If we are only pre-checking for batching or similar, do not generate now
         if skip_generate:
+             logging.debug(f"TRANS-PATH-1: {name} (skip_generate=True)")
              return {
                 "ID": storage_id,
                 "Name": name,
-                "Race": "Unknown",
-                "Sex": "Unknown",
-                "Faction": "Unknown",
+                "Race": ctx_data.get("race", "Unknown"),
+                "Sex": ctx_data.get("gender", "Unknown"),
+                "Faction": ctx_data.get("faction", "Unknown"),
+                "OriginFaction": ctx_data.get("origin_faction", "Unknown"),
+                "Job": ctx_data.get("job", "None"),
                 "Personality": "A quiet traveler.",
-                "Backstory": "Unknown.",
+                "Backstory": f"A {ctx_data.get('race', 'person')} from {ctx_data.get('faction', 'the borderlands')}.",
                 "SpeechQuirks": "None.",
                 "ConversationHistory": [],
-                "Relation": 0,
+                "Relation": int(float(ctx_data.get("relation", 0)) / 2),
                 "_transient": True
             }
 
         # Generation Lock: Prevent parallel single gens for the same NPC
         with PROGRESS_LOCK:
             if storage_id in PROFILES_IN_PROGRESS:
+                logging.debug(f"TRANS-PATH-2: {name} (Already in progress: {storage_id})")
                 return {
                     "ID": storage_id,
                     "Name": name,
                     "Race": "Unknown",
                     "Sex": "Unknown",
                     "Faction": "Unknown",
+                    "OriginFaction": "Unknown",
+                    "Job": "None",
                     "Personality": "A quiet traveler.",
                     "Backstory": "Unknown.",
                     "SpeechQuirks": "None.",
                     "ConversationHistory": [],
-                    "Relation": 0,
+                    "Relation": int(float(ctx_data.get("relation", 0)) / 2),
                     "_transient": True
                 }
             PROFILES_IN_PROGRESS.add(storage_id)
@@ -1595,6 +1861,7 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
             # Generate real profile only if we have full context.
             profile = generate_character_profile(name, context)
             if profile is None:
+                logging.debug(f"TRANS-PATH-3: {name} (Generator returned None)")
                 # Transient placeholder: NOT saved. Next call with full data will generate properly.
                 return {
                     "ID": storage_id,
@@ -1602,11 +1869,13 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                     "Race": "Unknown",
                     "Sex": "Unknown",
                     "Faction": "Unknown",
+                    "OriginFaction": "Unknown",
+                    "Job": "None",
                     "Personality": "A quiet traveler who keeps to themselves.",
                     "Backstory": "Their past is unclear.",
                     "SpeechQuirks": "Speaks sparingly.",
                     "ConversationHistory": [],
-                    "Relation": 0,
+                    "Relation": int(float(ctx_data.get("relation", 0)) / 2),
                     "_transient": True
                 }
             data = {
@@ -1615,11 +1884,13 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                 "Race": profile.get("Race", "Unknown"),
                 "Sex": profile.get("Sex", "Unknown"),
                 "Faction": profile.get("Faction", "Unknown"),
+                "OriginFaction": profile.get("OriginFaction", "Unknown"),
+                "Job": profile.get("Job", "None"),
                 "Personality": profile.get("Personality", "Unknown"),
                 "Backstory": profile.get("Backstory", "Unknown"),
                 "SpeechQuirks": profile.get("SpeechQuirks", ""),
                 "ConversationHistory": [],
-                "Relation": 0
+                "Relation": int(float(ctx_data.get("relation", 0)) / 2)
             }
         finally:
             with PROGRESS_LOCK:
@@ -1748,7 +2019,8 @@ def get_batch_identities():
         current_name = str(item.get('name', 'Someone')).strip()
         gender = item.get('gender', 'Neutral')
         
-        is_generic = is_npc_name_generic(current_name)
+        is_generic_client = item.get('is_generic', False)
+        is_generic = is_generic_client or is_npc_name_generic(current_name)
         
         if is_generic:
             new_name = generate_unique_lore_name(gender=gender)
@@ -2113,9 +2385,10 @@ def chat():
         test_action = None
         if cmd == "help" or cmd == "commands":
             help_text = "[DEBUG] Available test commands:\n" + \
-                        "/take (takes 1st inv item), /attack, /follow, /idle, /patrol, /join, /leave, /release,\n" + \
+                        "/take, /attack, /follow, /idle, /patrol, /join, /leave, /free, /breakout,\n" + \
+                        "/move, /movefast, /home, /shop, /raid [Town], /travel [Town], /medic, /rescue, /repair,\n" + \
                         "/notify [msg], /give_cats [n], /take_cats [n], /drop [item],\n" + \
-                        "/take_item [item], /spawn [T|N|D], /relations [Faction] [n], /task [TASKNAME]"
+                        "/take_item [item], /spawn [Templ|Name|Desc], /relations [Fact] [n], /task [TASK]"
             return jsonify({"text": help_text, "actions": []}), 200
             
         if cmd == "attack": test_action = "[ATTACK]"
@@ -2124,7 +2397,17 @@ def chat():
         elif cmd == "patrol": test_action = "[ACTION: PATROL_TOWN]"
         elif cmd == "join": test_action = "[ACTION: JOIN_PARTY]"
         elif cmd == "leave": test_action = "[ACTION: LEAVE]"
-        elif cmd == "release": test_action = "[ACTION: RELEASE_PLAYER]"
+        elif cmd == "free": test_action = "[ACTION: FREE_PLAYER]"
+        elif cmd == "breakout": test_action = "[ACTION: BREAKOUT_PLAYER]"
+        elif cmd == "move": test_action = "[ACTION: MOVE_ON_FREE_WILL]"
+        elif cmd == "movefast": test_action = "[ACTION: MOVE_ON_FREE_WILL_FAST]"
+        elif cmd == "home": test_action = "[ACTION: GO_HOMEBUILDING]"
+        elif cmd == "shop": test_action = "[ACTION: STAND_AT_SHOPKEEPER_NODE]"
+        elif cmd == "raid": test_action = f"[ACTION: RAID_TOWN: {args}]"
+        elif cmd == "travel": test_action = f"[ACTION: TRAVEL_TO_TARGET_TOWN: {args}]"
+        elif cmd == "medic": test_action = "[ACTION: JOB_MEDIC]"
+        elif cmd == "rescue": test_action = "[ACTION: FIND_AND_RESCUE]"
+        elif cmd == "repair": test_action = "[ACTION: JOB_REPAIR_ROBOT]"
         elif cmd == "notify": test_action = f"[ACTION: NOTIFY: {args}]"
         elif cmd == "give_cats": test_action = f"[ACTION: GIVE_CATS: {args}]"
         elif cmd == "take_cats": test_action = f"[ACTION: TAKE_CATS: {args}]"
@@ -2367,9 +2650,12 @@ def chat():
         d = char_datas[name]
         npc_profiles += f"\nCHARACTER: {name}\n"
         npc_profiles += f"RACE: {d.get('Race')}\n"
-        npc_profiles += f"FACTION: {d.get('Faction')}\n"
+        npc_profiles += f"ORIGIN FACTION: {get_faction_info(d.get('OriginFaction', 'Unknown'))}\n"
+        npc_profiles += f"CURRENT FACTION: {get_faction_info(d.get('Faction'))}\n"
+        npc_profiles += f"JOB: {d.get('Job', 'None')}\n"
         npc_profiles += f"PERSONALITY: {d.get('Personality')}\n"
         npc_profiles += f"BACKSTORY: {d.get('Backstory')}\n"
+        npc_profiles += f"PERSONAL RELATION TO PLAYER: {d.get('Relation', 0)} (Scale: -100 to 100)\n"
         
         # Add live context (stats, health, etc.)
         live_context = build_detailed_context_string(name, char_data=d)
@@ -2387,7 +2673,7 @@ def chat():
         
         if mode == 'yell':
             volume_status = "The player is addressing everyone nearby at a clear, projected volume."
-            yell_instruction = f"\nCRITICAL: {volume_status} This can be heard by everyone nearby ({', '.join(npcs)}). This is a public address or talking to a crowd; it is NOT yelling or shouting aggressively. DO NOT tell the player to quiet down or react with annoyance to the volume. You SHOULD respond as multiple characters from the list to create a realistic crowd reaction. Every speaker MUST be on a new line started with 'Name: ' (e.g., 'Beep: Hey!')."
+            yell_instruction = f"\nCRITICAL: {volume_status} This can be heard by everyone nearby ({', '.join(npcs)}). This is a public address or talking to a crowd; it is NOT yelling or shouting aggressively. DO NOT tell the player to quiet down or react with annoyance to the volume. You SHOULD respond as multiple characters from the list to create a realistic crowd reaction. Every speaker MUST be on a new line started with 'Name: ' (e.g., 'Beep: Hey!').\nACTION TAGS IN CROWD MODE: If a character decides to take an action (attack, flee, join, etc.), place the [ACTION: TAG] at the END of THAT CHARACTER'S OWN LINE, not at the end of the whole response. Example: 'Hobbs: I'm with you! [ACTION: JOIN_PARTY]'"
             dynamic_system_prompt += yell_instruction
         elif mode == 'whisper':
             volume_status = "The player is WHISPERING to you privately. This is a quiet, intimate, or secretive moment."
@@ -2402,6 +2688,10 @@ def chat():
                  
             talk_instruction = f"\nINFO: {volume_status} Respond naturally. This is a standard, polite conversation. You are calm and composed. DO NOT tell the player to quiet down, do NOT react with annoyance to their volume, and do NOT mention noise or shouting unless they are actually being aggressive."
             dynamic_system_prompt += talk_instruction
+            
+        # Relation Judgment (All direct non-ambient interactions)
+        if not is_ambient:
+            dynamic_system_prompt += "\nJUDGMENT: At the end of your response, you MUST judge the player's tone and the quality of this interaction on a scale of -5 (extremely aggressive/hostile/insulting) to 5 (extremely friendly/helpful/respectful). 0 is neutral. Format this judgment as a tag like [JUDGMENT: n] at the very end."
         
         # If the player is talking to multiple people (Yell or Group Talk), adjust the instructions
         if len(npcs) > 1 and mode == 'yell':
@@ -2414,6 +2704,9 @@ def chat():
         else:
             final_instruction = f"Respond as several characters from this list: ({', '.join(npcs)}) to the player's group address. Ensure at least 2-3 unique characters speak on separate lines if they are nearby."
 
+    # Limit response length to discourage rambling
+    final_instruction += " Keep it immersive, short, and grounded in the world of Kenshi. Response should be 1-3 sentences maximum."
+    
     template = load_prompt_component("prompt_chat_template.txt", """[SYSTEM CORE]
 {system_prompt}
 
@@ -2425,7 +2718,6 @@ def chat():
 
 [FINAL INSTRUCTION]
 {final_instruction}
-Keep it immersive, short, and grounded in the world of Kenshi.
 You MUST write your final response exclusively in {language_str}.
 """)
     
@@ -2458,91 +2750,197 @@ You MUST write your final response exclusively in {language_str}.
         {"role": "user", "content": full_player_entry}
     ]
 
-    # Debug Logging: Log the full request (DISABLED)
-    # DEBUG_LOG = os.path.join(SCRIPT_DIR, "..", "logs", "llm_debug.log")
-    # with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-    #     f.write(f"\n{'='*50}\n")
-    #     f.write(f"TIMESTAMP: {time.ctime()}\n")
-    #     f.write(f"REQUEST FOR: {primary_npc}\n")
-    #     f.write(f"PROMPT:\n{rich_prompt}\n")
-    #     f.write(f"USER MESSAGE: {player_message}\n")
-    #     f.write(f"{'-'*30}\n")
+    # Debug Logging: Log the full request
+    DEBUG_LOG = os.path.join(KENSHI_SERVER_DIR, "logs", "llm_debug.log")
+    try:
+        with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*50}\n")
+            f.write(f"TIMESTAMP: {time.ctime()}\n")
+            f.write(f"REQUEST FOR: {primary_npc} (Mode: {mode})\n")
+            f.write(f"PROMPT:\n{rich_prompt}\n")
+            f.write(f"USER MESSAGE: {player_message}\n")
+            f.write(f"{'-'*30}\n")
+    except: pass
 
     logging.info(f"Calling main chat LLM...")
     content = call_llm(messages)
     
-    # Debug Logging: Log the response (DISABLED)
-    # if content:
-    #     with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-    #         f.write(f"RAW LLM RESPONSE:\n{content}\n")
-    #         f.write(f"{'='*50}\n")
-    # else:
-    #     logging.error("LLM returned None for chat response.")
-    #     with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-    #         f.write(f"LLM RESPONSE FAILED (None)\n")
-    #         f.write(f"{'='*50}\n")
+    # Debug Logging: Log the response
+    if content:
+        try:
+            with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+                f.write(f"RAW LLM RESPONSE:\n{content}\n")
+                f.write(f"{'='*50}\n")
+        except: pass
+    else:
+        logging.error("LLM returned None for chat response.")
+        try:
+            with open(DEBUG_LOG, "a", encoding="utf-8") as f:
+                f.write(f"LLM RESPONSE FAILED (None)\n")
+                f.write(f"{'='*50}\n")
+        except: pass
     
     if content:
-        # Extract Action Tags safely matching bracketed keywords (tolerates spaces).
-        action_pattern = r'(\[\s*[A-Z_]+(?::\s*[^\]]+)?\s*\])'
-        actions = re.findall(action_pattern, content)
-        
-        # Remove tags from the dialogue text
-        content = re.sub(action_pattern, '', content).strip()
+        # 0. Per-speaker action parsing (for YELL/Group mode)
+        # We must do this BEFORE global cleaning removes the tags.
+        per_speaker_actions = []
+        speaker_judgments = {} # speaker -> val
+        if mode == 'yell':
+            raw_lines = content.split('\n')
+            for rline in raw_lines:
+                rline = rline.strip()
+                if not rline: continue
+                # Look for "Name: ... [TAG]"
+                match = re.match(r'^([^:]+):\s*(.*)$', rline)
+                if match:
+                    speaker = match.group(1).strip()
+                    payload = match.group(2).strip()
+                    # Extract ALL tags from this specific sub-line
+                    speaker_tags = re.findall(r'\[\s*[^\]]+\s*\]', payload)
+                    for stag in speaker_tags:
+                        # Re-attribute: "Name: [TAG]"
+                        per_speaker_actions.append(f"{speaker}: {stag}")
+                        logging.info(f"YELL ATTRIBUTION: {speaker} took action {stag}")
+                        
+                        # Extract judgment if present
+                        if "JUDGMENT" in stag.upper():
+                            j_match = re.search(r'-?\d+', stag)
+                            if j_match:
+                                try:
+                                    val = int(j_match.group(0))
+                                    speaker_judgments[speaker] = max(-5, min(5, val))
+                                except: pass
 
-        # Normalize Action Tags for C++ engine
-        updated_actions = []
-        for raw_tag in actions:
-            inner = raw_tag.strip("[] \t")
-            upper_inner = inner.upper()
+        # Use a very generous regex to find anything that looks like a tag
+        # Updated to handle one level of nested brackets (common in item names: Bolts [Toothpicks])
+        all_bracketed = re.findall(r'\[\s*(?:[^\[\]]|\[[^\[\]]*\])+\s*\]', content)
+        
+        actions = []
+        global_judgment = 0
+        
+        # Mapping of common sloppy keywords to formal C++ tags
+        formal_map = {
+            "GIVE_CATS": "GIVE_CATS", "TAKE_CATS": "TAKE_CATS", 
+            "GIVE_ITEM": "GIVE_ITEM", "TAKE_ITEM": "TAKE_ITEM",
+            "DROP_ITEM": "DROP_ITEM", "SPAWN_ITEM": "SPAWN_ITEM",
+            "JOIN_PARTY": "JOIN_PARTY", "LEAVE": "LEAVE",
+            "IDLE": "IDLE", "PATROL_TOWN": "PATROL_TOWN", 
+            "RELEASE_PLAYER": "RELEASE_PLAYER", "FREE_PLAYER": "FREE_PLAYER",
+            "NOTIFY": "NOTIFY", "FACTION_RELATIONS": "FACTION_RELATIONS",
+            "ATTACK_TOWN": "ATTACK_TOWN", "TRAVEL_TO_TARGET_TOWN": "TRAVEL_TO_TARGET_TOWN",
+            "RAID_TOWN": "RAID_TOWN", "ATTACK": "ATTACK",
+            "RELEASE_PRISONER": "RELEASE_PRISONER", 
+            "BREAKOUT_PRISONER": "BREAKOUT_PRISONER", "BREAKOUT_PLAYER": "BREAKOUT_PLAYER",
+            "JOB_MEDIC": "JOB_MEDIC", "JOB_REPAIR_ROBOT": "JOB_REPAIR_ROBOT",
+            "FIND_AND_RESCUE": "FIND_AND_RESCUE", "JUDGMENT": "JUDGMENT"
+        }
+
+        for raw in all_bracketed:
+            inner = raw.strip("[] \t")
+            # 1. Strip any recursive-like "ACTION:" or "TASK:" prefixes first
+            # We use a loop to handle weird double-prefixes like "ACTION: ACTION: TAKE_CATS"
+            clean = inner
+            while True:
+                prev = clean
+                clean = re.sub(r'^(ACTION|TASK|TAG):\s*', '', clean, flags=re.IGNORECASE).strip()
+                if clean == prev: break
             
-            # Map common sloppy inputs to formal tags
-            final_tag = ""
-            
-            # Known keywords that should trigger specific tags
-            known_actions = ["ATTACK", "JOIN_PARTY", "LEAVE", "FOLLOW_PLAYER", "IDLE", "PATROL_TOWN", "RELEASE_PLAYER", "NOTIFY", "GIVE_CATS", "TAKE_CATS", "GIVE_ITEM", "TAKE_ITEM", "DROP_ITEM", "SPAWN_ITEM", "FACTION_RELATIONS"]
-            
-            # Peel off prefixes for normalization check
-            core = upper_inner
-            if core.startswith("ACTION:"): core = core[7:].strip()
-            elif core.startswith("TASK:"): core = core[5:].strip()
-            
-            # Check for matches
-            matched = False
-            for ka in known_actions:
-                if ka in core:
-                    # Preserve arguments if any (e.g. JOIN_PARTY: Faction)
-                    args = ""
-                    if ":" in inner:
-                        args = inner.split(":", 1)[1].strip()
-                    
-                    if ka == "LEAVE":
-                        origin_faction = primary_data.get("Faction", "Unknown")
-                        final_tag = f"[ACTION: LEAVE: {origin_faction}]" if origin_faction != "Unknown" else "[ACTION: LEAVE]"
-                    elif ka in ["WANDERER", "CHASE", "IDLE", "MELEE_ATTACK"] or upper_inner.startswith("TASK:"):
-                        # Tasks use the TASK prefix
-                        final_tag = f"[TASK: {ka if not args else f'{ka}: {args}'}]"
-                    else:
-                        # Standard actions
-                        final_tag = f"[ACTION: {ka}{f': {args}' if args else ''}]"
-                    
-                    matched = True
+            # 2. Extract Keyword and Args
+            if ":" in clean:
+                parts = clean.split(":", 1)
+                kw = parts[0].strip().upper()
+                args = parts[1].strip()
+                
+                # Recursive keyword fix: Handle [ACTION: TAKE_CATS: TAKE_CATS: 40]
+                if args.upper().startswith(kw):
+                     args = re.sub(rf'^{re.escape(kw)}\s*:?\s*', '', args, flags=re.IGNORECASE).strip()
+            else:
+                kw = clean.upper()
+                args = ""
+
+            # 3. Handle Judgment (Extract value for server logic)
+            if kw == "JUDGMENT" or "JUDGMENT" in kw:
+                j_val = args or re.search(r'-?\d+', kw)
+                if j_val:
+                    try:
+                        j_str = j_val.group(0) if hasattr(j_val, 'group') else str(j_val)
+                        global_judgment = max(-5, min(5, int(j_str)))
+                        logging.info(f"RELATION: Interaction judged as {global_judgment}")
+                    except: pass
+                # Do NOT continue; let it be added to actions so it's 'passed' to C++ logs
+
+            # 4. Handle Actions/Tasks
+            # Fuzzy match the keyword against our known list
+            matched_ka = None
+            for formal in formal_map:
+                if formal == kw or (formal in kw and len(kw) < len(formal) + 3):
+                    matched_ka = formal_map[formal]
                     break
             
-            if not matched:
-                # Fallback: if it's uppercase and bracketed, try to wrap it as an action anyway
-                if core.strip():
-                    final_tag = f"[ACTION: {core}]"
+            if matched_ka:
+                # Rebuild the tag exactly as C++ expects it, avoiding double prefixes
+                if matched_ka in ["WANDERER", "CHASE", "IDLE", "MELEE_ATTACK"]:
+                    final_tag = f"[TASK: {matched_ka}{f': {args}' if args else ''}]"
+                else:
+                    # Special case: LEAVE needs the origin faction for squad dismissal
+                    if matched_ka == "LEAVE" and not args:
+                        origin_faction = primary_data.get("Faction", "Unknown")
+                        final_tag = f"[ACTION: LEAVE: {origin_faction}]" if origin_faction != "Unknown" else "[ACTION: LEAVE]"
+                    else:
+                        final_tag = f"[ACTION: {matched_ka}{f': {args}' if args else ''}]"
+                
+                # Check for redundant task assigned in consecutive turns
+                if "TASK:" in final_tag:
+                     last_hist = primary_data["ConversationHistory"][-1] if primary_data["ConversationHistory"] else ""
+                     if final_tag in last_hist: continue
+                
+                actions.append(final_tag)
 
-            if final_tag:
-                # REDUNDANCY FILTER
-                # Avoid repetitive wanderer/idle tasks if no change
-                if "TASK:WANDERER" in final_tag or "TASK:IDLE" in final_tag:
-                     last_history = primary_data["ConversationHistory"][-1] if primary_data["ConversationHistory"] else ""
-                     if final_tag in last_history:
-                         continue
-                updated_actions.append(final_tag)
-        actions = updated_actions
+        # 5. Apply judgment to NPC's personal relation score and faction relations
+        if not is_ambient:
+            # Aggregate all participants who judged
+            judges = speaker_judgments if speaker_judgments else {primary_npc: global_judgment}
+            
+            for judge_name, j_val in judges.items():
+                if j_val == 0: continue
+                
+                # Get data for this speaker (must have been loaded in char_datas)
+                j_data = char_datas.get(judge_name)
+                if not j_data: 
+                    # If it's a yell participant we didn't fully load, skip
+                    continue
+
+                current_rel = j_data.get("Relation", 0)
+                try: current_rel = int(current_rel)
+                except: current_rel = 0
+                
+                new_rel = max(-100, min(100, current_rel + j_val))
+                if new_rel != current_rel:
+                    j_data["Relation"] = new_rel
+                    logging.info(f"RELATION: {judge_name} personal relation updated {current_rel} -> {new_rel} (judgment={j_val})")
+
+                # Faction relation impact (Only for significant judgments)
+                f_delta = 0
+                if j_val >= 5: f_delta = 2
+                elif j_val >= 4: f_delta = 1
+                elif j_val <= -5: f_delta = -2
+                elif j_val <= -4: f_delta = -1
+                
+                if f_delta != 0:
+                    npc_f = j_data.get("Faction", "None")
+                    if npc_f and npc_f not in ["None", "Nameless", "No Faction"]:
+                        f_tag = f"[ACTION: FACTION_RELATIONS: {npc_f}: {f_delta}]"
+                        actions.append(f_tag)
+                        logging.info(f"RELATION: Scheduled faction relation change via {judge_name} for {npc_f}: {f_delta}")
+
+        # 6. Clean Dialogue Text - remove ALL bracketed tags from the dialogue
+        content = re.sub(r'\[\s*(?:[^\[\]]|\[[^\[\]]*\])+\s*\]', '', content).strip()
+
+        # In YELL mode, prepend per-speaker attributed actions so C++ resolves
+        # each action to the correct NPC via the "NpcName: [ACTION: X]" prefix.
+        if mode == 'yell' and per_speaker_actions:
+            logging.info(f"YELL ACTIONS: {per_speaker_actions}")
+            actions = per_speaker_actions + actions
 
         # Advanced Cleaning
         content = content.replace('"', '').strip()
@@ -2554,6 +2952,10 @@ You MUST write your final response exclusively in {language_str}.
             line = line.strip()
             if not line: continue
             
+            # Re-apply tag removal to individual lines just in case
+            line = re.sub(r'\[\s*[^\]]+\s*\]', '', line).strip()
+            if not line: continue
+
             # If in YELL mode, look for "Name: Response" format to split bubbles
             is_group_response = (mode == 'yell')
             if is_group_response:
@@ -2587,7 +2989,6 @@ You MUST write your final response exclusively in {language_str}.
             if line.startswith('=') or line.startswith('-') or len(set(line)) <= 2:
                 continue
                 
-            # Remove "CHARACTER_NAME: " prefixes ONLY if NOT in squad mode
             # Remove "CHARACTER_NAME: " prefixes ONLY if NOT in multi/squad mode
             if len(npcs) <= 1:
                 # Hallucination Filter: If talking to ONE person, ensure they don't speak as the player or someone else
@@ -2632,7 +3033,7 @@ You MUST write your final response exclusively in {language_str}.
         else:
             content = "..."
 
-        # Final safety truncation (Kenshi bubbles are intended for short lines)
+        # Final safety truncation
         if len(content) > 500:
             content = content[:497] + "..."
         
@@ -2701,9 +3102,10 @@ You MUST write your final response exclusively in {language_str}.
                 char_datas[name]["ConversationHistory"] = char_datas[name]["ConversationHistory"][-250:]
                 
             storage_id = char_datas[name].get("ID", name)
-            # CRITICAL: Prevent transient fallback profiles from overwriting real ones
-            if char_datas[name].get("_transient"):
-                logging.warning(f"SKIP SAVE: {name} is using a transient fallback profile. Blocking disk override.")
+            # Relaxed transient check: if they have history, allow save even if technically transient
+            has_history = len(char_datas[name].get("ConversationHistory", [])) > 0
+            if char_datas[name].get("_transient") and not has_history:
+                logging.warning(f"SKIP SAVE: {name} is using a transient fallback profile with no history. Blocking disk override.")
             elif should_save_profile(name, storage_id, char_datas[name]):
                 save_character_data(storage_id, char_datas[name])
 
@@ -2770,14 +3172,22 @@ def record_event_to_history(etype, actor, target, msg, actor_faction="None", tar
 
     # Log to file (Active Campaign Log) - Always log for live debugger feed
     try:
-        log_dir = os.path.join(get_campaign_dir(), "logs")
+        cdir = get_campaign_dir()
+        log_dir = os.path.join(cdir, "logs")
         if not os.path.exists(log_dir): os.makedirs(log_dir)
         with open(os.path.join(log_dir, "global_events.log"), "a", encoding="utf-8") as f:
             f.write(f"{evt_str}\n")
+            
+        # Also copy to server.log so it shows up in both tabs if relevant
+        logging.info(f"EVENT: {evt_str}")
     except:
         pass
 
     # Simple deduplication based on exact string for memory/synthesis
+    # CRITICAL: Filter out "looting" events from the narrative history to prevent spam.
+    if etype == "looting":
+        return
+
     if evt_str not in EVENT_HISTORY:
         EVENT_HISTORY.append(evt_str)
         GLOBAL_EVENT_COUNTER += 1
@@ -2809,21 +3219,79 @@ def generate_global_narrative_thread():
     # but the prompt instructions will emphasize the 'global_events_count' recent actions.
     sample_size = min(len(EVENT_HISTORY), max(ge_count, 100))
     last_chunk = EVENT_HISTORY[-sample_size:]
-    events_text = "\n".join(last_chunk)
+    
+    # GROUP BY LOCATION
+    # Events often contain " @ TownName"
+    grouped_events = {}
+    for evt in last_chunk:
+        location = "Unknown Region"
+        if " @ " in evt:
+            # Extract location between " @ " and the following ":"
+            try:
+                parts = evt.split(" @ ")
+                if len(parts) > 1:
+                    location = parts[1].split(":")[0].strip()
+            except: pass
+        
+        if location not in grouped_events:
+            grouped_events[location] = []
+        grouped_events[location].append(evt)
+
+    # Format grouped text
+    events_text = ""
+    for loc, evts in grouped_events.items():
+        events_text += f"\n--- {loc.upper()} ---\n"
+        events_text += "\n".join(evts) + "\n"
+    
+    logging.info(f"NARRATIVE: Grouped {len(last_chunk)} events into {len(grouped_events)} locations.")
+    # logging.debug(f"NARRATIVE GROUPING:\n{events_text}")
+    
+    # Load existing rumors to prevent repeats
+    past_rumors_block = ""
+    world_events_path = os.path.join(get_campaign_dir(), "world_events.txt")
+    if os.path.exists(world_events_path):
+        try:
+            with open(world_events_path, "r", encoding="utf-8") as f:
+                # Find the actual [RUMOR: ...] text in the last few lines
+                rumor_lines = []
+                for line in f.readlines()[-20:]: # Scan last 20 lines
+                    match = re.search(r'\[RUMOR:\s*(.*?)\]', line)
+                    if match:
+                        rumor_lines.append(f"- {match.group(1).strip()}")
+                
+                if rumor_lines:
+                    past_rumors_block = "\nPREVIOUS RUMORS (Do NOT repeat these):\n" + "\n".join(rumor_lines[-5:])
+        except: pass
+
+    p_fact = PLAYER_CONTEXT.get("faction", "The Nameless")
     
     template = load_prompt_component("prompt_world_synthesis.txt", """[KENSHI WORLD SYNERGY]
-The following is a log of recent interactions in the world of Kenshi.
+The following is a log of recent interactions in the world of Kenshi, grouped by location.
 Your task is to synthesize these events into a single, high-impact 'Global Rumor'.
 
 RECENT LOGS:
 {events_text}
+{past_rumors_block}
 
 INSTRUCTIONS:
-1. Write one flavorful, immersive rumor — 1 to 3 sentences, grounded in Kenshi's brutal world.
-2. Keep it short, cynical, and specific. Reference real names and factions from the logs.
-3. Output ONLY the rumor text itself, with no prefix tags or formatting.
+1. Treat the PLAYER and their squad ({p_fact}) as just another group of wanderers. 
+2. DO NOT make the player out to be a hero or legend unless they have performed a truly massive feat (e.g. liberating a city or killing a faction leader).
+3. ONLY attribute events to the player if their name or 'Player's Squad' actually appears as an actor in the logs.
+4. If an actor is 'Unknown', do NOT assume it is the player. Treat it as a mysterious figure or a random incident.
+5. If the player is merely starving, dying, or performing minor trades, either ignore it or mention it as a minor misfortune of another 'unlucky nomad'.
+6. Focus on patterns: frequent battles, faction clashes, or specific NPC actions.
+7. Write one flavorful, cynical rumor — 1 to 3 sentences. Ground it in Kenshi's brutal reality.
+8. Output ONLY the rumor text itself, with no prefix tags or formatting.
+9. DO NOT blow minor scuffles out of proportion; keep it grounded.
+10. VARIETY: Do NOT produce a rumor that is logically identical to the PREVIOUS RUMORS listed above.
 """)
-    prompt = template.format(events_text=events_text)
+    prompt = template.format(events_text=events_text, past_rumors_block=past_rumors_block, p_fact=p_fact)
+
+    # Apply language instruction so rumors respect the UI language setting
+    language = settings.get("language", "English")
+    if language and language.lower() != "english":
+        prompt += f"\nLANGUAGE: You MUST write the rumor ONLY in {language}. Do not use English."
+
     messages = [
         {"role": "system", "content": prompt},
         {"role": "user", "content": "Synthesize the rumors of the borderlands."}
@@ -2991,24 +3459,44 @@ def update_context():
         if name:
             LIVE_CONTEXTS[name] = data
             LAST_NPC_NAME = name
+            # Force update LAST_STATE_LOG for immediate debugger visibility
+            with STATE_LOCK:
+                LAST_STATE_LOG["npc"] = data
     return jsonify({"status": "ok"})
 
 
 @app.route('/context', methods=['GET'])
 def get_context():
-    npc_ctx = LIVE_CONTEXTS.get(LAST_NPC_NAME) if LAST_NPC_NAME else {}
+    """Returns the most recent player and NPC context for the debugger/UI."""
+    # Try to grab the last active NPC from live contexts
+    last_npc = None
+    if LIVE_CONTEXTS:
+        # Get the most recently updated context
+        last_npc_id = list(LIVE_CONTEXTS.keys())[-1]
+        last_npc = LIVE_CONTEXTS[last_npc_id]
+    
+    # Use the global tracking for synthesis
+    elapsed = SYNTHESIS_STATUS.get("elapsed", 0)
+    interval = SYNTHESIS_STATUS.get("interval", 60)
+
     return jsonify({
         "status": "ok",
+        "player": PLAYER_CONTEXT or LAST_STATE_LOG.get("player", {}),
+        "npc": last_npc or LAST_STATE_LOG.get("npc", {}),
         "campaign": ACTIVE_CAMPAIGN,
-        "npc": npc_ctx,
-        "player": PLAYER_CONTEXT,
-        "synthesis": SYNTHESIS_STATUS
+        "synthesis": {
+            "elapsed": elapsed,
+            "interval": interval
+        }
     })
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings_endpoint():
     global CURRENT_MODEL_KEY
-    logging.info(f"ROUTE: /settings [{request.method}]")
+    if request.method == 'POST' and request.content_length:
+        logging.info(f"ROUTE: /settings [{request.method}]")
+    else:
+        logging.debug(f"ROUTE: /settings [{request.method}]")
     load_configs()
 
     # ---------- READ (GET or POST with no body) ----------
@@ -3284,6 +3772,94 @@ def switch_campaign(name):
         return True
     return False
 
+@app.route('/regenerate_profile', methods=['POST'])
+def regenerate_profile_route():
+    logging.info("ROUTE: /regenerate_profile [POST]")
+    data = request.json
+    sid = data.get("sid")
+    if not sid: return jsonify({"status": "error", "message": "Missing NPC ID (sid)"}), 400
+    
+    # 1. Resolve safe filename and load data
+    safe_fn = "".join([c for c in str(sid) if c.isalnum() or c in (' ', '_', '-')]).strip()
+    path = os.path.join(CHARACTERS_DIR, f"{safe_fn}.json")
+    
+    if not os.path.exists(path):
+        logging.error(f"REGEN: Profile not found at {path}")
+        return jsonify({"status": "error", "message": "Profile not found"}), 404
+        
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            char_data = json.load(f)
+            
+        history = char_data.get("ConversationHistory", [])
+        if not history:
+             logging.warning(f"REGEN: No history for {sid}, fallback to standard gen?")
+             return jsonify({"status": "error", "message": "No conversation history to build from. Talk to the NPC first!"}), 400
+             
+        # 2. Build synthesis prompt
+        name = char_data.get("Name", sid)
+        race = char_data.get("Race", "Unknown")
+        personality = char_data.get("Personality", "Unknown")
+        backstory = char_data.get("Backstory", "Unknown")
+        faction = char_data.get("Faction", "Unknown")
+        
+        # Use full history for best quality
+        history_block = "\n".join(history)
+        
+        logging.info(f"REGEN: Evolving profile for {name} based on {len(history)} lines of memory...")
+        
+        system_msg = "You are an expert on Kenshi lore and character growth. You write NPC profiles in a grounded, cynical tone. You ALWAYS respond ONLY with a valid JSON object."
+        user_msg = f"""Rewrite the Personality and Backstory for the Kenshi NPC "{name}" based on their conversation history.
+
+CURRENT PROFILE:
+Personality: {personality}
+Backstory: {backstory}
+Race: {race} | Faction: {faction}
+
+CONVERSATION HISTORY:
+{history_block}
+
+Instructions:
+- EVOLVE the profile to reflect their experiences with the player.
+- Maintain the Kenshi world's grounded, cynical tone.
+- If they've bonded with the player, reflect that. If there was conflict, reflect that too.
+- Response MUST be ONLY a JSON object with keys: "Personality", "Backstory", "SpeechQuirks"."""
+
+        messages = [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg}
+        ]
+        response_text = call_llm(messages, max_tokens=1500, temperature=0.7)
+        
+        # Detect the empty-response placeholder returned by call_llm
+        if not response_text or "Empty Response" in response_text:
+            logging.error(f"REGEN: LLM returned empty/null response for {name}. This may be a token limit or content filter issue.")
+            return jsonify({"status": "error", "message": f"LLM returned an empty response. The model may have run out of tokens. Try again or use an NPC with fewer memories."}), 500
+
+        result = robust_json_parse(response_text)
+        if result:
+            # Update and preserve metadata
+            char_data["Personality"] = result.get("Personality", personality)
+            char_data["Backstory"] = result.get("Backstory", backstory)
+            char_data["SpeechQuirks"] = result.get("SpeechQuirks", char_data.get("SpeechQuirks", ""))
+            
+            # Save
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(char_data, f, indent=2)
+            
+            logging.info(f"REGEN: Successfully evolved profile for {name}.")
+            return jsonify({"status": "ok", "message": f"Successfully evolved {name}'s profile."})
+        else:
+            logging.error(f"REGEN: JSON parse failed for {name}. Raw response: {response_text[:300]}")
+            return jsonify({"status": "error", "message": "LLM response was not valid JSON. Try again."}), 500
+                
+    except Exception as e:
+        logging.error(f"REGEN: Failed for {sid}: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+        
+    return jsonify({"status": "error", "message": "Synthesis failed"}), 500
+
+
 @app.route('/models', methods=['GET'])
 def get_models():
     """Alias for GET /settings — used by the visual debugger."""
@@ -3355,6 +3931,7 @@ def get_history():
     lines = []
     lines.append(f"--- PROFILE: {char_data.get('Name', clean_npc_name)} ---")
     lines.append(f"Faction: {char_data.get('Faction', 'Unknown')} | Race: {char_data.get('Race', 'Unknown')}")
+    lines.append(generate_relation_bar(char_data.get('Relation', 0)))
     lines.append("-" * 30)
     lines.append("PERSONALITY:")
     lines.append(_wrap(char_data.get('Personality', 'Unknown')))
@@ -3680,6 +4257,67 @@ def monitor_kenshi_process():
 
 # Start Kenshi monitor thread
 threading.Thread(target=monitor_kenshi_process, daemon=True).start()
+
+
+# --- WEB DEBUGGER ROUTES (v2.0) ---
+from flask import render_template, send_from_directory
+
+@app.route('/debugger')
+def serve_debugger():
+    """Serve the modern web-based visual debugger."""
+    return render_template('debugger.html')
+
+@app.route('/models', methods=['GET'])
+def get_models_alias():
+    """Alias for settings endpoint to satisfy web debugger."""
+    return settings_endpoint()
+
+@app.route('/api/command', methods=['POST'])
+def web_command():
+    """Relay commands from the web UI to the Kenshi pipe."""
+    data = request.json or {}
+    cmd = data.get('command')
+    if not cmd:
+        return jsonify({"status": "error", "message": "Missing command"}), 400
+    
+    # Handle specialized web commands
+    if cmd == "MANUAL_SYNTHESIZE":
+        generate_global_narrative_thread()
+        return jsonify({"status": "ok", "message": "Synthesis triggered"})
+    elif cmd == "RESCAN_SAVES":
+        update_world_index()
+        return jsonify({"status": "ok", "message": "Save index updated"})
+    elif cmd == "RESET_SERVER":
+        LIVE_CONTEXTS.clear()
+        LAST_STATE_LOG.clear()
+        EVENT_THROTTLE.clear()
+        return jsonify({"status": "ok", "message": "Server state reset"})
+    
+    # Standard pipe relay
+    send_to_pipe(cmd)
+    logging.info(f"WEB_CMD: Relayed command: {cmd}")
+    return jsonify({"status": "ok"})
+
+@app.route('/api/logs/<path:log_name>')
+def stream_logs(log_name):
+    """Serve log files for the real-time event feed."""
+    if ".." in log_name:
+        return "Access Denied", 403
+        
+    # Priority 1: server.log or llm_debug.log (the main tool/app logs)
+    if log_name in ["server.log", "llm_debug.log"]:
+        log_path = os.path.join(KENSHI_SERVER_DIR, "logs", log_name)
+        if os.path.exists(log_path):
+            return send_from_directory(os.path.dirname(log_path), os.path.basename(log_path))
+
+    # Priority 2: campaign-specific logs
+    log_dir = os.path.join(get_campaign_dir(), "logs")
+    if os.path.exists(os.path.join(log_dir, log_name)):
+        return send_from_directory(log_dir, log_name)
+        
+    # Priority 3: general logs fallback
+    fallback_dir = os.path.join(KENSHI_SERVER_DIR, "logs")
+    return send_from_directory(fallback_dir, log_name)
 
 if __name__ == '__main__':
     logging.info("Kenshi LLM Server Starting on port 5000...")

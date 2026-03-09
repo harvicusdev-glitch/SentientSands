@@ -1,4 +1,15 @@
 #pragma once
+
+namespace MyGUI {
+class Window;
+class Button;
+class EditBox;
+class ListBox;
+class TextBox;
+class ComboBox;
+class Widget;
+} // namespace MyGUI
+
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_ComboBox.h>
 #include <mygui/MyGUI_EditBox.h>

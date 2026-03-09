@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <windows.h>
 
-
 using namespace SentientSands::UI;
 
 std::wstring Utf8ToWide(const std::string &str) {
@@ -190,6 +189,8 @@ void SetHotkeyFromString(const std::string &keyStr) {
     g_chatHotkey = VK_OEM_4;
   else if (keyStr == "P" || keyStr == "p")
     g_chatHotkey = 'P';
+  else if (keyStr == "T" || keyStr == "t")
+    g_chatHotkey = 'T';
   else if (keyStr == "J" || keyStr == "j")
     g_chatHotkey = 'J';
   else if (keyStr == "U" || keyStr == "u")
@@ -203,14 +204,7 @@ void SetHotkeyFromString(const std::string &keyStr) {
 }
 
 void LoadPluginConfig() {
-  char path[MAX_PATH];
-  GetModuleFileNameA(NULL, path, MAX_PATH);
-  std::string dir = path;
-  size_t lastBackslash = dir.find_last_of("\\/");
-  if (lastBackslash != std::string::npos) {
-    dir = dir.substr(0, lastBackslash);
-  }
-  std::string iniPath = dir + "\\mods\\SentientSands\\SentientSands_Config.ini";
+  std::string iniPath = g_modRoot + "\\SentientSands_Config.ini";
 
   char hotkeyBuf[32];
   GetPrivateProfileStringA("Settings", "ChatHotkey", "\\", hotkeyBuf, 32,
@@ -258,14 +252,7 @@ void LoadPluginConfig() {
 }
 
 void SavePluginConfig() {
-  char path[MAX_PATH];
-  GetModuleFileNameA(NULL, path, MAX_PATH);
-  std::string dir = path;
-  size_t lastBackslash = dir.find_last_of("\\/");
-  if (lastBackslash != std::string::npos) {
-    dir = dir.substr(0, lastBackslash);
-  }
-  std::string iniPath = dir + "\\mods\\SentientSands\\SentientSands_Config.ini";
+  std::string iniPath = g_modRoot + "\\SentientSands_Config.ini";
 
   WritePrivateProfileStringA("Settings", "ChatHotkey", g_chatHotkeyStr.c_str(),
                              iniPath.c_str());
@@ -300,33 +287,36 @@ void SavePluginConfig() {
 void StartPythonServer() {
   Log("SYSTEM: Starting Python server...");
 
-  // Try local embedded python first
-  std::string localPython = "mods/SentientSands/server/python/python.exe";
+  // Use g_modRoot (the DLL's own directory) so this works for both regular
+  // mods/SentientSands/ installs and Steam Workshop numeric-ID folders.
+  std::string localPython = g_modRoot + "\\server\\python\\python.exe";
   std::string serverScript =
-      "mods/SentientSands/server/scripts/kenshi_llm_server.py";
+      g_modRoot + "\\server\\scripts\\kenshi_llm_server.py";
+
+  Log("SYSTEM: Python path: " + localPython);
+  Log("SYSTEM: Server script: " + serverScript);
 
   DWORD fileAttr = GetFileAttributesA(localPython.c_str());
   if (fileAttr != INVALID_FILE_ATTRIBUTES &&
       !(fileAttr & FILE_ATTRIBUTE_DIRECTORY)) {
     Log("SYSTEM: Using embedded Python runtime.");
-    std::string cmd = localPython + " " + serverScript;
+    std::string cmd = "\"" + localPython + "\" \"" + serverScript + "\"";
     WinExec(cmd.c_str(), SW_HIDE);
   } else {
     // Check if python is in system PATH
     int result = system("python --version >nul 2>&1");
     if (result == 0) {
       Log("SYSTEM: Local Python not found, falling back to global 'python'.");
-      WinExec(("python " + serverScript).c_str(), SW_HIDE);
+      WinExec(("python \"" + serverScript + "\"").c_str(), SW_HIDE);
     } else {
       Log("ERROR: No Python installation found!");
-      MessageBoxA(NULL,
-                  "Sentient Sands requires a Python engine to connect to AI "
-                  "models, but no Python installation was found!\n\n"
-                  "Please go to your Kenshi mod directory:\n"
-                  "Kenshi/mods/SentientSands/\n\n"
-                  "And double-click 'Install_Python.bat' to download the local "
-                  "engine, then restart the game.",
-                  "Sentient Sands - Python Missing", MB_ICONERROR | MB_OK);
+      MessageBoxA(
+          NULL,
+          "Sentient Sands requires a Python engine to connect to AI "
+          "models, but no Python installation was found!\n\n"
+          "Please go to your mod directory and run 'Install_Python.bat' "
+          "to download the local engine, then restart the game.",
+          "Sentient Sands - Python Missing", MB_ICONERROR | MB_OK);
     }
   }
 }

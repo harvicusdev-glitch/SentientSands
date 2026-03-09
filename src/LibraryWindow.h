@@ -7,6 +7,7 @@ namespace UI {
 extern MyGUI::Window *g_libraryWindow;
 extern MyGUI::ListBox *g_libraryList;
 extern MyGUI::ListBox *g_libraryText;
+extern MyGUI::Button *g_libraryRegenBtn;
 extern std::vector<std::string> g_libraryStorageIds;
 
 void CreateLibraryUI();

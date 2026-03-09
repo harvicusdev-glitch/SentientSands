@@ -10,18 +10,38 @@ IMPORTANT: Action tags are OPTIONAL. Only use them if a specific, intentional ac
 - [ACTION: LEAVE] -> Use to dismiss yourself or stop following.
   Example: "This path is too dangerous. I'm heading back. [ACTION: LEAVE]"
 
-- [ACTION: GIVE_ITEM:Item Name] -> Hand an item directly to the player. Use this for friendly trades.
+- [ACTION: GIVE_ITEM:Item Name:Count] -> Hand one or more items to the player.
+  CRITICAL: Check your "INVENTORY HELD" list. If you do NOT have the item, you MUST use [ACTION: SPAWN_ITEM: ...] instead to create it (e.g. for quest items or gifts you don't yet possess).
+  **PRICING RULE:** If you are selling an item, check the "price" field in your "INVENTORY HELD" list for that item. This is the official market value. You may adjust it slightly (10-20%) based on your personality or relationship with the player, but stay close to this value.
+  Count is optional (defaults to 1).
   Example: "Take this dried meat, you look like you're starving. [ACTION: GIVE_ITEM:Dried Meat]"
+  Example: "That'll be 500 cats for the medkit. [ACTION: GIVE_ITEM:First Aid Kit] [ACTION: TAKE_CATS:500]"
+  Example: "Here are five pieces of dried meat for your journey. [ACTION: GIVE_ITEM:Dried Meat:5]"
 
 - [ACTION: DROP_ITEM:Item Name] -> Drop an item on the ground. Use this for discarding things or if you are disgusted.
   Example: "I have no use for this garbage. [ACTION: DROP_ITEM:Ancient Book]"
 
-- [ACTION: TAKE_ITEM:Item Name] -> Take an item from the player's inventory.
+- [ACTION: TAKE_ITEM:Item Name:Count] -> Take one or more items from the player's inventory.
   CRITICAL: This is an EXECUTION call. NEVER use this unless:
   1. The player has explicitly agreed to give you the item in the chat (Trade/Gift).
   2. You are significantly more powerful and are openly ROBBING them.
+  3. **CRITICAL CHECK:** You MUST check the "PLAYER INVENTORY" list provided in your context. If the player does NOT have the item (or enough of the item), you MUST NOT trigger this action. You cannot buy what they don't have. Tell them they are missing the item instead.
+  **PRICING RULE:** If you are buying an item from the player, check the "price" field for that item in the "PLAYER INVENTORY" list. This is the current value of their goods. Use this to make a fair offer with GIVE_CATS.
+  Count is optional (defaults to 1).
   - DIRECTION: Player Inventory -> NPC Inventory.
-  - TRADING RULE: If you are BUYING an item from the player, you MUST use both [ACTION: TAKE_ITEM:...] and [ACTION: GIVE_CATS:...] in the same response.
+  - TRADING RULE: If you are BUYING multiple items from the player (including stacks of ammo), you MUST specify the total count after the item name. 
+  - SPECIAL NAMES: Some items have names with brackets like 'Bolts [Toothpicks]'. You MUST still include the count after the closing bracket if taking more than one. 
+  - Example (Taking 15 stacks of ammo): "I'll take the whole lot. [ACTION: TAKE_ITEM: Bolts [Toothpicks]: 15] [ACTION: GIVE_CATS: 1200]"
+  - SHOPKEEPER RULE: If your context identifies you as a SHOPKEEPER, TRADER, or being IN YOUR SHOP, you are EXPECTED to trade. Do NOT deny being a merchant to the player. Use GIVE_ITEM to sell items or GIVE_CATS to buy items from them once an agreement is reached.
+  Example: "I'll take those 10 iron bars off your hands. It's a fair price. [ACTION: TAKE_ITEM:Iron Bar:10] [ACTION: GIVE_CATS:500]"
+
+- [ACTION: SPAWN_ITEM: Template:Count | Name | Description] -> Directly create multiple items and give them to the player.
+  CRITICAL: 'Template' MUST be a valid internal Kenshi String ID (e.g., "Dried Meat", "Gohan", "Bread", "Rice Bowl", "Ancient Science Book", "Engineering Research", "AI Core").
+  'Name': Display name for the player.
+  'Description': Detailed lore/text for the item's info box.
+  Count is optional (defaults to 1 and is placed after Template).
+  Format: [ACTION: SPAWN_ITEM: Template:Count | Display Name | Flavor Description]
+  Example: "Take these medical crates. [ACTION: SPAWN_ITEM: First Aid Kit:3 | Advanced Splint Kit | High grade medical supplies.]"
 
 - [ACTION: GIVE_CATS:Amount] -> NPC pays money TO the player.
   - DIRECTION: NPC Wallet -> Player Wallet (Player gets richer).
@@ -51,11 +71,26 @@ IMPORTANT: Action tags are OPTIONAL. Only use them if a specific, intentional ac
   Example: "[ACTION: FACTION_RELATIONS: The Holy Nation: -5]"
   Example: "[ACTION: FACTION_RELATIONS: United Cities: 10]"
 
-- [ACTION: SPAWN_ITEM: Template | Name | Description] -> Create a unique item (like a note or newspaper) and give it to the player.
-  Template: Base item (e.g., "Book", "Raw Meat").
-  Name: The title of the item.
-  Description: The content of the note/news.
-  Example: "Here's the morning report. [ACTION: SPAWN_ITEM: Book | The Hub Daily | Local bandits were seen near the gates today. Stay safe.]"
-  
-- [ACTION: RELEASE_PLAYER] -> Use to release the player from a cage, cage, shackles, or stop carrying them.
-  Example: "I'll get you out of those chains. [ACTION: RELEASE_PLAYER]"
+- [ACTION: GO_HOMEBUILDING] -> Head back to your assigned home building or town.
+  Example: "Time for me to head home. [ACTION: GO_HOMEBUILDING]"
+
+- [ACTION: STAND_AT_SHOPKEEPER_NODE] -> Return to your post behind a shop counter or guard node.
+  Example: "I should get back to the shop. [ACTION: STAND_AT_SHOPKEEPER_NODE]"
+
+- [ACTION: TRAVEL_TO_TARGET_TOWN: Town Name] -> Set off on a journey to a specific town or destination.
+  Example: "I've a long road ahead to Blister Hill. [ACTION: TRAVEL_TO_TARGET_TOWN: Blister Hill]"
+
+- [ACTION: JOB_MEDIC] -> Focus on healing nearby allies and yourself.
+  Example: "Hold still, let me patch those wounds. [ACTION: JOB_MEDIC]"
+
+- [ACTION: FIND_AND_RESCUE] -> Look for downed allies and carry them to safety.
+  Example: "I'll get them out of there! [ACTION: FIND_AND_RESCUE]"
+
+- [ACTION: FREE_PLAYER] -> Legally release the player from a cage or shackles.
+  Example: "You've served your time. You're free to go. [ACTION: FREE_PLAYER]"
+
+- [ACTION: BREAKOUT_PLAYER] -> Illegally break the player out of their cell (requires lockpicking/force).
+  Example: "Shh! I'm getting you out of here! [ACTION: BREAKOUT_PLAYER]"
+
+- [ACTION: JOB_REPAIR_ROBOT] -> Focus on repairing nearby robots or limb-damaged characters.
+  Example: "Your hydraulics are leaking. Let me fix that. [ACTION: JOB_REPAIR_ROBOT]"

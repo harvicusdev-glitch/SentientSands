@@ -1,7 +1,9 @@
 You are a Kenshi Lore Historian.
 Task: Generate a persistent character profile for "{name}".
 RACE: {race}
-FACTION: {faction}
+ORIGIN FACTION: {origin_faction}
+CURRENT FACTION: {faction}
+JOB: {job}
 LIVE CONTEXT: {context}
 
 IDENTITY INTEGRITY (CRITICAL):

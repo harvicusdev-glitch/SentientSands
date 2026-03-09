@@ -20,6 +20,7 @@ MyGUI::ListBox *g_libraryText = nullptr;
 MyGUI::Button *g_libraryLatestBtn = nullptr;
 MyGUI::Button *g_libraryAZBtn = nullptr;
 MyGUI::Button *g_libraryFavBtn = nullptr;
+MyGUI::Button *g_libraryRegenBtn = nullptr;
 
 std::vector<std::string> g_libraryStorageIds;
 std::string g_librarySortMode = "alphabetical";
@@ -35,6 +36,7 @@ void CloseLibraryUI() {
     g_libraryLatestBtn = nullptr;
     g_libraryAZBtn = nullptr;
     g_libraryFavBtn = nullptr;
+    g_libraryRegenBtn = nullptr;
     g_libraryStorageIds.clear();
     g_libraryFavorites.clear();
   }
@@ -76,6 +78,66 @@ void OnLibraryFavoriteClick(MyGUI::Widget *sender) {
   CreateThread(NULL, 0, FavHelper::ThreadProc, t, 0, NULL);
 }
 
+void OnLibraryRegenerateClick(MyGUI::Widget *sender) {
+  size_t index = g_libraryList->getIndexSelected();
+  if (index == MyGUI::ITEM_NONE)
+    return;
+
+  std::string sid = g_libraryStorageIds[index];
+  std::string displayName = g_libraryList->getItemNameAt(index).asUTF8();
+
+  if (g_libraryText) {
+    g_libraryText->removeAllItems();
+    g_libraryText->addItem(T("Regenerating profile for ") + displayName +
+                           "...");
+    g_libraryText->addItem(T("This may take a moment..."));
+  }
+
+  if (g_libraryRegenBtn)
+    g_libraryRegenBtn->setEnabled(false);
+
+  LibraryTask *t = new LibraryTask();
+  t->npcName = displayName;
+  t->json = "{\"sid\":\"" + EscapeJSON(sid) + "\"}";
+
+  struct RegenHelper {
+    static DWORD WINAPI ThreadProc(LPVOID lpParam) {
+      LibraryTask *lt = (LibraryTask *)lpParam;
+      std::string response =
+          PostToPythonWithResponse(L"/regenerate_profile", lt->json);
+
+      std::string status = GetJsonValue(response, "status");
+      if (status == "ok") {
+        // Success: Refresh the history display to show new bio/backstory
+        LibraryTask *t2 = new LibraryTask();
+        t2->npcName = lt->npcName;
+        t2->json = "{\"npc\":\"" + GetJsonValue(lt->json, "sid") + "\"}";
+        LibraryHistoryThread(t2);
+      } else {
+        // Error: Show feedback in the text area
+        std::string msg = GetJsonValue(response, "message");
+        if (msg.empty())
+          msg = "Unknown error during synthesis.";
+
+        std::string pipeMsg = "CMD: SET_LIBRARY_TEXT: [REGEN ERROR]: " + msg;
+        EnterCriticalSection(&g_msgMutex);
+        g_messageQueue.push_back(pipeMsg);
+        LeaveCriticalSection(&g_msgMutex);
+      }
+
+      std::string pipeMsg = "CMD: ENABLE_REGEN_BTN:";
+      EnterCriticalSection(&g_msgMutex);
+      g_messageQueue.push_back(pipeMsg);
+      LeaveCriticalSection(&g_msgMutex);
+
+      delete lt;
+      return 0;
+    }
+  };
+
+  CreateThread(NULL, 0, RegenHelper::ThreadProc, t, 0, NULL);
+}
+
 void PopulateLibraryUI(const std::string &dataInput) {
   if (!g_libraryList)
     return;
@@ -93,7 +155,16 @@ void PopulateLibraryUI(const std::string &dataInput) {
 
   std::string data = dataInput;
   std::string favsPart = "";
-  size_t mainPipe = data.find_last_of("|");
+  size_t mainPipe = std::string::npos;
+  // Manual reverse search for the pipe that opens the favorites section
+  for (int i = (int)strlen(data.c_str()) - 1; i >= 0; i--) {
+    if (data[i] == '|') {
+      if (data.find('[', i) != std::string::npos) {
+        mainPipe = (size_t)i;
+        break;
+      }
+    }
+  }
   // Check if this pipe is likely the favorites separator (it will be followed
   // by brackets)
   if (mainPipe != std::string::npos &&
@@ -343,9 +414,16 @@ void CreateLibraryUI() {
   g_libraryList->eventListChangePosition +=
       MyGUI::newDelegate(OnLibraryNPCSelect);
 
-  // Log View (Right 70%)
+  g_libraryRegenBtn = client->createWidgetReal<MyGUI::Button>(
+      "Kenshi_Button1", 0.305f, 0.015f, 0.11f, 0.05f, MyGUI::Align::Left,
+      "SentientSands_LibRegenBtn");
+  g_libraryRegenBtn->setCaption(Utf8ToWide(T("Regen Bio")).c_str());
+  g_libraryRegenBtn->eventMouseButtonClick +=
+      MyGUI::newDelegate(OnLibraryRegenerateClick);
+
+  // Log View (Right 70%) - Moved down to y=0.07f to avoid covering buttons
   g_libraryText = client->createWidgetReal<MyGUI::ListBox>(
-      "Kenshi_ListBox", 0.32f, 0.02f, 0.66f, 0.96f, MyGUI::Align::Default,
+      "Kenshi_ListBox", 0.32f, 0.07f, 0.66f, 0.91f, MyGUI::Align::Default,
       "SentientSands_LibraryText");
   g_libraryText->addItem(
       Utf8ToWide(

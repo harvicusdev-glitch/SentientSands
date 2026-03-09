@@ -8,5 +8,5 @@
 {history_str}
 
 [FINAL INSTRUCTION]
-Respond as {primary_npc} to the player's last message. 
-Keep it immersive, short, and grounded in the world of Kenshi.
+{final_instruction}
+You MUST write your final response exclusively in {language_str}.

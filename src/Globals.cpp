@@ -10,6 +10,9 @@ DWORD g_mainThreadId = 0;
 DWORD g_lastAmbientTick = 0;
 DWORD g_lastDialogueTick = 0;
 std::map<unsigned int, std::string> g_originFactions;
+std::map<unsigned int, OriginState> g_originJobs;
+std::string g_modRoot = "";
+HMODULE g_hModule = nullptr;
 
 float g_radiantRange = 100.0f;
 float g_proximityRadius = 40.0f;
@@ -28,6 +31,7 @@ std::string g_activeInventoryJson = "[]";
 hand g_lastInventoryHand;
 std::string g_activeCharName = "";
 hand g_lastSelectionHand;
+hand g_lastChattingPlayerHand;
 std::string g_playerInventoryJson = "[]";
 hand g_playerHand;
 CRITICAL_SECTION g_stateMutex;

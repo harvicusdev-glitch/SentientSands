@@ -10,7 +10,21 @@ class GameWorld;
 namespace Ogre {
 class Vector3;
 }
+#include <kenshi/Enums.h>
 #include <kenshi/util/hand.h>
+#include <ogre/OgreVector3.h>
+
+struct OriginJob {
+  TaskType type;
+  hand target;
+  Ogre::Vector3 location;
+};
+
+struct OriginState {
+  std::vector<OriginJob> jobs;
+  hand homeTown;
+  hand homeBuilding;
+};
 
 // Global communication state
 extern GameWorld **ppWorld;
@@ -22,6 +36,7 @@ extern DWORD g_mainThreadId;
 extern DWORD g_lastAmbientTick;
 extern DWORD g_lastDialogueTick;
 extern std::map<unsigned int, std::string> g_originFactions;
+extern std::map<unsigned int, OriginState> g_originJobs;
 
 // Configuration variables
 extern float g_radiantRange;
@@ -42,6 +57,7 @@ extern std::string g_activeInventoryJson;
 extern hand g_lastInventoryHand;
 extern std::string g_activeCharName;
 extern hand g_lastSelectionHand;
+extern hand g_lastChattingPlayerHand;
 extern std::string g_playerInventoryJson;
 extern hand g_playerHand;
 extern CRITICAL_SECTION g_stateMutex;
@@ -50,6 +66,11 @@ extern std::string g_chatHotkeyStr;
 extern std::string g_language;
 extern std::map<std::string, std::string> g_uiTranslation;
 std::string T(const std::string &key);
+
+// Mod root directory (resolved at startup from DLL's own path — works for both
+// regular mods/ installs and Steam Workshop numeric-ID folders)
+extern std::string g_modRoot;
+extern HMODULE g_hModule;
 
 // UI Task queue (for thread-safe UI access)
 enum ActionType {
@@ -102,6 +123,7 @@ struct NameCheckItem {
   std::string name;
   std::string gender; // "Male" | "Female"
   std::string race;
+  bool is_generic;
 };
 extern std::deque<NameCheckItem> g_nameCheckQueue;
 extern CRITICAL_SECTION g_nameCheckMutex;

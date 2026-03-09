@@ -92,6 +92,30 @@ DWORD WINAPI ChatResponseThread(LPVOID lpParam) {
     }
   }
 
+  // 🚨 FIX: Fire actions FIRST so the engine state is already set correctly
+  // before the speech bubble appears. This avoids any race condition where the
+  // AI state change (FOLLOW_PLAYER, JOIN_PARTY, etc.) interrupts or clears the
+  // dialogue system after the bubble was queued.
+  for (size_t i = 0; i < actions.size(); i++) {
+    std::string actLine;
+    // Check if the action already has a speaker attribution (e.g. "Name:
+    // [ACTION: X]")
+    if (actions[i].find(':') != std::string::npos &&
+        actions[i].find('[') != std::string::npos &&
+        actions[i].find(':') < actions[i].find('[')) {
+      actLine = "NPC_ACTION: " + actions[i];
+    } else {
+      actLine =
+          "NPC_ACTION: " + t->npcName + "|" + t->handleStr + ": " + actions[i];
+    }
+
+    EnterCriticalSection(&g_msgMutex);
+    g_messageQueue.push_back(actLine);
+    LeaveCriticalSection(&g_msgMutex);
+    Sleep(50); // Small gap between multiple actions
+  }
+
+  // Then queue speech lines AFTER actions are submitted
   if (!npcText.empty()) {
     std::stringstream ss(npcText);
     std::string line;
@@ -134,15 +158,6 @@ DWORD WINAPI ChatResponseThread(LPVOID lpParam) {
       LeaveCriticalSection(&g_msgMutex);
       first = false;
     }
-  }
-
-  for (size_t i = 0; i < actions.size(); i++) {
-    Sleep(50);
-    std::string actLine =
-        "NPC_ACTION: " + t->npcName + "|" + t->handleStr + ": " + actions[i];
-    EnterCriticalSection(&g_msgMutex);
-    g_messageQueue.push_back(actLine);
-    LeaveCriticalSection(&g_msgMutex);
   }
 
   delete t;

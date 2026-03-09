@@ -1,0 +1,18 @@
+{
+    "openrouter": {
+        "api_key": "YOUR_OPENROUTER_KEY",
+        "base_url": "https://openrouter.ai/api/v1"
+    },
+    "player2": {
+        "api_key": "sk-player2-local",
+        "base_url": "http://127.0.0.1:4315/v1"
+    },
+    "nanogpt": {
+        "api_key": "YOUR_NANOGPT_KEY",
+        "base_url": "https://nano-gpt.com/api/subscription/v1"
+    },
+    "ollama": {
+        "api_key": "ollama",
+        "base_url": "http://localhost:11434/v1"
+    }
+}

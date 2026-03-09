@@ -2,6 +2,7 @@
 #include "Globals.h"
 #include "Utils.h"
 #include <fstream>
+#include <kenshi/Building.h>
 #include <kenshi/CharStats.h>
 #include <kenshi/Character.h>
 #include <kenshi/Faction.h>
@@ -15,6 +16,7 @@
 #include <kenshi/Platoon.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RaceData.h>
+#include <kenshi/util/hand.h>
 #include <sstream>
 #include <vector>
 
@@ -374,13 +376,34 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
     else if (faction->data && !faction->data->name.empty())
       factionName = faction->data->name;
 
-    if (faction->data)
+    if (faction->data && !faction->data->stringID.empty())
       factionID = faction->data->stringID;
     else
       factionID = factionName;
   }
   json += "\"faction\": \"" + EscapeJSON(factionName) + "\",";
   json += "\"factionID\": \"" + EscapeJSON(factionID) + "\",";
+
+  // Job / Assigned Tasks
+  std::string job = "None";
+  try {
+    int jobCount = npc->getPermajobCount();
+    if (jobCount > 0) {
+      job = "";
+      for (int i = 0; i < jobCount; ++i) {
+        std::string jName = npc->getPermajobName(i);
+        if (!jName.empty()) {
+          if (!job.empty())
+            job += ", ";
+          job += jName;
+        }
+      }
+      if (job.empty())
+        job = "None";
+    }
+  } catch (...) {
+  }
+  json += "\"job\": \"" + EscapeJSON(job) + "\",";
 
   // IDENTITY STABILITY
   std::string identityFaction = GetIdentityFaction(npc);
@@ -418,6 +441,27 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
     }
   }
   json += "\"is_leader\": " + std::string(isLeader ? "true" : "false") + ",";
+
+  // Building Context
+  bool indoors = false;
+  std::string buildingName = "Unknown";
+  bool inAShop = false;
+  const hand &buildingHandle = npc->isIndoors();
+  if (buildingHandle.isValid()) {
+    indoors = true;
+    Building *b = buildingHandle.getBuilding();
+    if (b) {
+      buildingName = b->getName();
+      if (b->isAShop() || b->designation == BD_SHOP ||
+          b->designation == BD_BAR) {
+        inAShop = true;
+      }
+    }
+  }
+
+  json += "\"indoors\": " + std::string(indoors ? "true" : "false") + ",";
+  json += "\"in_shop\": " + std::string(inAShop ? "true" : "false") + ",";
+  json += "\"building_name\": \"" + EscapeJSON(buildingName) + "\",";
 
   if (ppWorld && *ppWorld) {
     lektor<RootObject *> results;
@@ -588,9 +632,19 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
       if (allItems[i]) {
         if (i > 0)
           json += ",";
+        
+        // Get the real price using the engine's internal valuation logic
+        int price = 0;
+        try {
+            price = allItems[i]->getValueSingle(false);
+        } catch (...) {
+            price = 0;
+        }
+
         json +=
             "{\"name\": \"" + EscapeJSON(allItems[i]->getName()) +
             "\", \"count\": " + ToString((int)allItems[i]->quantity) +
+            ", \"price\": " + ToString(price) +
             ", \"equipped\": " + (allItems[i]->isEquipped ? "true" : "false") +
             ", \"slot\": \"" + SlotToString(allItems[i]->slotType) + "\"}";
       }
