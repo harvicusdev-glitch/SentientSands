@@ -2655,6 +2655,7 @@ def chat():
         npc_profiles += f"JOB: {d.get('Job', 'None')}\n"
         npc_profiles += f"PERSONALITY: {d.get('Personality')}\n"
         npc_profiles += f"BACKSTORY: {d.get('Backstory')}\n"
+        npc_profiles += f"SPEECH QUIRKS: {d.get('SpeechQuirks')}\n"
         npc_profiles += f"PERSONAL RELATION TO PLAYER: {d.get('Relation', 0)} (Scale: -100 to 100)\n"
         
         # Add live context (stats, health, etc.)
