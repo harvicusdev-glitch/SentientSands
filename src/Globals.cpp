@@ -15,17 +15,19 @@ std::string g_modRoot = "";
 HMODULE g_hModule = nullptr;
 
 float g_radiantRange = 100.0f;
-float g_proximityRadius = 40.0f;
-float g_yellRadius = 100.0f;
+float g_proximityRadius = 100.0f;
+float g_yellRadius = 200.0f;
 float g_visionRange = 100.0f;
-int g_ambientIntervalSeconds = 120;
+int g_ambientIntervalSeconds = 240;
 bool g_enableAmbient = true;
+bool g_enableRenamer = true;
+bool g_enableAnimalRenamer = true;
 bool g_triggerAmbient = false;
 float g_minFactionRelation = -100.0f;
 float g_maxFactionRelation = 100.0f;
-int g_worldEventIntervalDays = 3;
-int g_dialogueSpeedSeconds = 5;
-float g_speechBubbleLife = 5.0f;
+int g_worldEventIntervalDays = 10;
+int g_dialogueSpeedSeconds = 8;
+float g_speechBubbleLife = 15.0f;
 
 std::string g_activeInventoryJson = "[]";
 hand g_lastInventoryHand;
@@ -34,6 +36,7 @@ hand g_lastSelectionHand;
 hand g_lastChattingPlayerHand;
 std::string g_playerInventoryJson = "[]";
 hand g_playerHand;
+MyGUI::ImageBox *g_loadingIcon = nullptr;
 CRITICAL_SECTION g_stateMutex;
 
 std::deque<GameEvent> g_gameEvents;

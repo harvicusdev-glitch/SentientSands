@@ -88,9 +88,9 @@ void OnLibraryRegenerateClick(MyGUI::Widget *sender) {
 
   if (g_libraryText) {
     g_libraryText->removeAllItems();
-    g_libraryText->addItem(T("Regenerating profile for ") + displayName +
-                           "...");
-    g_libraryText->addItem(T("This may take a moment..."));
+    g_libraryText->addItem(Utf8ToWide(T("Regenerating profile for ") + displayName +
+                           T("...")).c_str());
+    g_libraryText->addItem(Utf8ToWide(T("This may take a moment...")).c_str());
   }
 
   if (g_libraryRegenBtn)
@@ -117,7 +117,7 @@ void OnLibraryRegenerateClick(MyGUI::Widget *sender) {
         // Error: Show feedback in the text area
         std::string msg = GetJsonValue(response, "message");
         if (msg.empty())
-          msg = "Unknown error during synthesis.";
+          msg = T("Unknown error during synthesis.");
 
         std::string pipeMsg = "CMD: SET_LIBRARY_TEXT: [REGEN ERROR]: " + msg;
         EnterCriticalSection(&g_msgMutex);
@@ -415,9 +415,9 @@ void CreateLibraryUI() {
       MyGUI::newDelegate(OnLibraryNPCSelect);
 
   g_libraryRegenBtn = client->createWidgetReal<MyGUI::Button>(
-      "Kenshi_Button1", 0.305f, 0.015f, 0.11f, 0.05f, MyGUI::Align::Left,
+      "Kenshi_Button1", 0.83f, 0.015f, 0.15f, 0.05f, MyGUI::Align::Right,
       "SentientSands_LibRegenBtn");
-  g_libraryRegenBtn->setCaption(Utf8ToWide(T("Regen Bio")).c_str());
+  g_libraryRegenBtn->setCaption(Utf8ToWide(T("Regenerate Bio")).c_str());
   g_libraryRegenBtn->eventMouseButtonClick +=
       MyGUI::newDelegate(OnLibraryRegenerateClick);
 

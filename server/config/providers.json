@@ -14,5 +14,9 @@
     "ollama": {
         "api_key": "ollama",
         "base_url": "http://localhost:11434/v1"
+    },
+    "lmstudio_local": {
+        "api_key": "YOUR_LMSTUDIO_LOCAL_KEY",
+        "base_url": "http://127.0.0.1:1234/v1"
     }
 }

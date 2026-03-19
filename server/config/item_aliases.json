@@ -1,0 +1,36 @@
+{
+    "ancient science book":       "Ancient Science Book",
+    "ancient science books":      "Ancient Science Book",
+    "science book":               "Ancient Science Book",
+    "science books":              "Ancient Science Book",
+    "dusty tome":                 "Ancient Science Book",
+    "dusty tomes":                "Ancient Science Book",
+    "old tome":                   "Ancient Science Book",
+    "old tomes":                  "Ancient Science Book",
+    "tech book":                  "Ancient Science Book",
+    "tech books":                 "Ancient Science Book",
+    "engineering research book":  "Engineering Research",
+    "engineering research books": "Engineering Research",
+
+    "ai core":                    "AI Core",
+    "ai cores":                   "AI Core",
+    "electrical components":      "Electrical Components",
+    "electrical component":       "Electrical Components",
+    "mechanical components":      "Mechanical Components",
+    "mechanical component":       "Mechanical Components",
+
+    "iron plate":                 "Iron Plates",
+    "steel bar":                  "Steel Bars",
+    "steel bars":                 "Steel Bars",
+    "copper alloy":               "Copper Alloy Plates",
+
+    "food cube":                  "Food Cube",
+    "foodcube":                   "Food Cube",
+
+    "medkit":                     "First Aid Kit",
+    "med kit":                    "First Aid Kit",
+
+    "hashish":                    "Hashish",
+    "sake":                       "Sake",
+    "rum":                        "Rum"
+}

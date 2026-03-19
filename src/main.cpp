@@ -102,8 +102,12 @@ void (*setChainedMode_orig)(Character *, bool, const hand &) = nullptr;
 #include <mygui/MyGUI_InputManager.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Window.h>
+#include <mygui/MyGUI_ImageBox.h>
+#include <mygui/MyGUI_RotatingSkin.h>
 
+#include <cmath>
 #include "ChatUI.h"
+#include "llm_client.h"
 
 // --- Main Hook Core ---
 // List of generic name prefixes to detect and replace
@@ -174,16 +178,20 @@ static bool IsGenericName(Character *npc, const std::string &name) {
   if (!npc || (uintptr_t)npc < 0x1000)
     return true;
 
-  // 1. Safety check: Never rename unique NPCs
-  if (npc->isUnique())
-    return false;
+  try {
+    // 1. Safety check: Never rename unique NPCs
+    if (npc->isUnique())
+      return false;
 
-  // 2. Multi-language/Default coverage: Check if name matches template name
-  // Template names are often what's used for generic NPCs (e.g., "Hungry
-  // Bandit") and this works regardless of the game language.
-  if (npc->getGameData() && !npc->getGameData()->name.empty()) {
-    if (name == npc->getGameData()->name)
-      return true;
+    // 2. Multi-language/Default coverage: Check if name matches template name
+    // Template names are often what's used for generic NPCs (e.g., "Hungry
+    // Bandit") and this works regardless of the game language.
+    if (npc->getGameData() && !npc->getGameData()->name.empty()) {
+      if (name == npc->getGameData()->name)
+        return true;
+    }
+  } catch (...) {
+      // Ignore memory exceptions on partially loaded entities
   }
 
   // 3. Prefix/Keyword fallbacks (useful for custom mods or variants)
@@ -218,6 +226,7 @@ static bool IsGenericName(Character *npc, const std::string &name) {
 
   return false;
 }
+
 
 void ProcessMessageQueue(GameWorld *thisptr) {
   if (TryEnterCriticalSection(&g_msgMutex)) {
@@ -290,6 +299,10 @@ void ProcessMessageQueue(GameWorld *thisptr) {
                 g_ambientIntervalSeconds = atoi(val.c_str());
                 g_lastAmbientTick =
                     GetTickCount(); // Reset timer on frequency change
+              } else if (var == "g_enableRenamer") {
+                g_enableRenamer = (val == "1");
+              } else if (var == "g_enableAnimalRenamer") {
+                g_enableAnimalRenamer = (val == "1");
               } else if (var == "g_proximityRadius")
                 g_proximityRadius = (float)atof(val.c_str());
               else if (var == "g_radiantRange")
@@ -375,14 +388,22 @@ void ProcessMessageQueue(GameWorld *thisptr) {
             const ogre_unordered_set<Character *>::type &chars =
                 thisptr->getCharacterUpdateList();
             for (auto it = chars.begin(); it != chars.end(); ++it) {
-              if (*it && (uintptr_t)*it > 0x1000 &&
-                  (*it)->getHandle().serial == serial) {
-                std::string oldName = (*it)->getName();
-                (*it)->setName(newName);
-                Log("NAME_ASSIGN: Renamed '" + oldName + "' -> '" + newName +
-                    "' (serial " + ToString(serial) + ")");
-                break;
-              }
+              try {
+                if (*it && (uintptr_t)*it > 0x1000 &&
+                    (*it)->getHandle().serial == serial) {
+                  std::string oldName = (*it)->getName();
+                  (*it)->setName(newName);
+                  Log("NAME_ASSIGN: Renamed '" + oldName + "' -> '" + newName +
+                      "' (serial " + ToString(serial) + ")");
+                  
+                  // Notify python server to update existing .cfg files so the Dialogue Library syncs!
+                  std::string renameJson = "{\"old_name\": \"" + EscapeJSON(oldName) + 
+                                           "\", \"new_name\": \"" + EscapeJSON(newName) + 
+                                           "\", \"context\": {\"storage_id\": \"" + EscapeJSON(oldName + "|" + ToString(serial)) + "\"}}";
+                  AsyncPostToPython(L"/rename", renameJson);
+                  break;
+                }
+              } catch (...) {}
             }
           }
         }
@@ -479,6 +500,7 @@ void ProcessMessageQueue(GameWorld *thisptr) {
           size_t startPos = isNPCSay ? 9 : 12;
           std::string remainder = msg.substr(startPos);
           size_t colon = remainder.find(':');
+
 
           std::string name = "";
           unsigned int tSerial = 0;
@@ -1223,8 +1245,9 @@ void setFaction_hook(TownBase *town, Faction *faction, ActivePlatoon *_a2) {
     std::string oldName = old ? old->getName() : "None";
     std::string newName = faction->getName();
 
-    // Only log if the faction actually changed
-    if (oldName != newName) {
+    // Only log if the faction actually changed and it's not a first-time discovery
+    // (Discovery often reports a transfer from "None" or "No Faction")
+    if (oldName != newName && oldName != "None" && oldName != "No Faction") {
       LogGameEvent("city_transfer", oldName, oldName, newName, newName,
                    "Town " + town->getName() + " changed ownership");
     }
@@ -1292,6 +1315,38 @@ void playerUpdate_hook(PlayerInterface *thisptr) {
     g_welcomeShown = true;
   }
 
+  // Handle LLM Loading Icon
+  // Handle LLM Loading Icon
+  if (MyGUI::Gui::getInstancePtr()) {
+    if (!g_loadingIcon) {
+      g_loadingIcon = MyGUI::Gui::getInstancePtr()->createWidget<MyGUI::ImageBox>(
+          "ImageBox", 20, 20, 48, 48, MyGUI::Align::Left | MyGUI::Align::Top, "Popup"
+      );
+      g_loadingIcon->setImageTexture("loading_icon.png");
+      g_loadingIcon->setImageCoord(MyGUI::IntCoord(0, 0, 790, 790));
+      g_loadingIcon->setAlpha(0.8f);
+      g_loadingIcon->setVisible(false);
+    }
+    
+    bool active = SentientSands::isLLMActive();
+    g_loadingIcon->setVisible(active);
+    if (active) {
+      MyGUI::ISubWidget* mainSub = g_loadingIcon->getSubWidgetMain();
+      if (mainSub) {
+        MyGUI::RotatingSkin* rotSkin = mainSub->castType<MyGUI::RotatingSkin>(false);
+        if (rotSkin) {
+          static float angle = 0.0f;
+          angle += 0.05f;
+          rotSkin->setCenter(MyGUI::IntPoint(24, 24));
+          rotSkin->setAngle(angle);
+        } else {
+          static float pulse = 0.0f;
+          pulse += 0.01f;
+          g_loadingIcon->setAlpha(0.6f + 0.3f * std::sin(pulse));
+        }
+      }
+    }
+  }
   // 1. Core Selection Tracking
   Character *sel = nullptr;
   try {
@@ -1397,26 +1452,42 @@ void playerUpdate_hook(PlayerInterface *thisptr) {
                       o_rn = o_race->data->stringID;
                   }
 
-                  std::string o_job = "None";
-                  if (other->data && !other->data->name.empty())
-                    o_job = other->data->name;
-                  else if (other->data && !other->data->stringID.empty())
-                    o_job = other->data->stringID;
-
                   std::string identityFaction = GetIdentityFaction(other);
+                  std::string runtimeID = GetRuntimeIDFor(other);
+                  std::string persistentID = GetPersistentIDFor(other);
+                  
+                  std::string o_job = "None";
+                  try {
+                    int jobCount = other->getPermajobCount();
+                    if (jobCount > 0) {
+                      o_job = "";
+                      for (int j = 0; j < jobCount; ++j) {
+                        std::string jName = other->getPermajobName(j);
+                        if (!jName.empty()) {
+                          if (!o_job.empty())
+                            o_job += ", ";
+                          o_job += jName;
+                        }
+                      }
+                      if (o_job.empty()) o_job = "None";
+                    }
+                  } catch (...) {}
+
                   npcData +=
                       "{\"name\":\"" + EscapeJSON(other->getName()) + "\",";
                   npcData +=
                       "\"id\":" + ToString((int)other->getHandle().serial) +
                       ",";
+                  npcData += "\"runtime_id\":\"" + EscapeJSON(runtimeID) + "\",";
+                  npcData += "\"persistent_id\":\"" + EscapeJSON(persistentID) + "\",";
                   npcData += "\"race\":\"" + EscapeJSON(o_rn) + "\",";
                   npcData +=
                       "\"gender\":\"" +
                       std::string(other->isFemale() ? "female" : "male") +
                       "\",";
-                  npcData += "\"job\":\"" + EscapeJSON(o_job) + "\",";
                   npcData +=
-                      "\"faction\":\"" + EscapeJSON(identityFaction) + "\"}";
+                      "\"faction\":\"" + EscapeJSON(identityFaction) + "\",";
+                  npcData += "\"job\":\"" + EscapeJSON(o_job) + "\"}";
                   first = false;
                   count++;
                 }
@@ -1447,7 +1518,7 @@ void playerUpdate_hook(PlayerInterface *thisptr) {
 
   // 4. Periodic Generic-Name Scan -> populate g_nameCheckQueue for
   // NameAssignThread
-  if (world && world->player) {
+  if (world && world->player && g_enableRenamer) {
     static DWORD lastNameScanTick = 0;
     if (GetTickCount() - lastNameScanTick > 2000) {
       lastNameScanTick = GetTickCount();
@@ -1457,7 +1528,7 @@ void playerUpdate_hook(PlayerInterface *thisptr) {
       // 2. A sphere search around ALL player-controlled characters
       std::vector<Character *> candidates;
 
-      // Source 1: Update List
+      // Source 1: Update List (this implicitly tracks all active characters in the loaded world chunks)
       const ogre_unordered_set<Character *>::type &upList =
           world->getCharacterUpdateList();
       for (auto it = upList.begin(); it != upList.end(); ++it) {
@@ -1465,90 +1536,77 @@ void playerUpdate_hook(PlayerInterface *thisptr) {
           candidates.push_back(*it);
       }
 
-      // Source 2: Sphere Search (catch 'sleeping' NPCs near player)
-      const lektor<Character *> &players =
-          world->player->getAllPlayerCharacters();
-      for (uint32_t pi = 0; pi < players.size(); ++pi) {
-        Character *p = players[pi];
-        if (!p)
-          continue;
-        lektor<RootObject *> results;
-        world->getCharactersWithinSphere(results, p->getPosition(), 5000.0f,
-                                         0.0f, 0.0f, 100, 0, p);
-        for (uint32_t ri = 0; ri < results.size(); ++ri) {
-          Character *c = (Character *)results.stuff[ri];
-          if (c && (uintptr_t)c > 0x1000)
-            candidates.push_back(c);
-        }
-      }
-
       // Remove duplicates using serials
       std::set<unsigned int> uniqueSerials;
       std::vector<Character *> uniqueCandidates;
       for (size_t ci = 0; ci < candidates.size(); ++ci) {
         Character *c = candidates[ci];
-        unsigned int s = c->getHandle().serial;
-        if (uniqueSerials.find(s) == uniqueSerials.end()) {
-          uniqueSerials.insert(s);
-          uniqueCandidates.push_back(c);
-        }
+        try {
+          unsigned int s = c->getHandle().serial;
+          if (uniqueSerials.find(s) == uniqueSerials.end()) {
+            uniqueSerials.insert(s);
+            uniqueCandidates.push_back(c);
+          }
+        } catch (...) {}
       }
 
       for (size_t ui = 0; ui < uniqueCandidates.size(); ++ui) {
         Character *other = uniqueCandidates[ui];
-        unsigned int s = other->getHandle().serial;
-
-        // Skip if already processed
-        EnterCriticalSection(&g_nameCheckMutex);
-        bool alreadyDone = (g_renamedSerials.count(s) > 0);
-        LeaveCriticalSection(&g_nameCheckMutex);
-
-        if (alreadyDone)
-          continue;
-
-        std::string oName;
         try {
-          oName = other->getName();
-        } catch (...) {
-          continue;
-        }
-        if (oName.empty())
-          continue;
+          unsigned int s = other->getHandle().serial;
 
-        // If generic, queue for renaming
-        if (IsGenericName(other, oName)) {
-          std::string oGender = other->isFemale() ? "Female" : "Male";
-          RaceData *oRace = other->getRace() ? other->getRace() : other->myRace;
-          std::string oRaceName = "Human";
-          if (oRace && (uintptr_t)oRace > 0x1000 && oRace->data &&
-              !oRace->data->name.empty())
-            oRaceName = oRace->data->name;
-
-          NameCheckItem ncItem;
-          ncItem.serial = s;
-          ncItem.name = oName;
-          ncItem.gender = oGender;
-          ncItem.race = oRaceName;
-          ncItem.is_generic =
-              true; // If we're here, IsGenericName returned true
-
+          // Skip if already processed
           EnterCriticalSection(&g_nameCheckMutex);
-          bool alreadyQueued = false;
-          for (uint32_t q = 0; q < g_nameCheckQueue.size(); ++q) {
-            if (g_nameCheckQueue[q].serial == s) {
-              alreadyQueued = true;
-              break;
+          bool alreadyDone = (g_renamedSerials.count(s) > 0);
+          LeaveCriticalSection(&g_nameCheckMutex);
+
+          if (alreadyDone)
+            continue;
+
+          std::string oName = other->getName();
+          if (oName.empty())
+            continue;
+
+          // If generic, queue for renaming
+          if (IsGenericName(other, oName)) {
+            std::string oGender = other->isFemale() ? "Female" : "Male";
+            RaceData *oRace = other->getRace() ? other->getRace() : other->myRace;
+            std::string oRaceName = "Human";
+            if (oRace && (uintptr_t)oRace > 0x1000 && oRace->data &&
+                !oRace->data->name.empty())
+              oRaceName = oRace->data->name;
+
+            NameCheckItem ncItem;
+            ncItem.serial = s;
+            try {
+              ncItem.persistent_id = other->getHandle().toString();
+            } catch (...) {
+              ncItem.persistent_id = ToString(s);
             }
+            ncItem.name = oName;
+            ncItem.gender = oGender;
+            ncItem.race = oRaceName;
+            ncItem.is_generic =
+                true; // If we're here, IsGenericName returned true
+
+            EnterCriticalSection(&g_nameCheckMutex);
+            bool alreadyQueued = false;
+            for (uint32_t q = 0; q < g_nameCheckQueue.size(); ++q) {
+              if (g_nameCheckQueue[q].serial == s) {
+                alreadyQueued = true;
+                break;
+              }
+            }
+            if (!alreadyQueued)
+              g_nameCheckQueue.push_back(ncItem);
+            LeaveCriticalSection(&g_nameCheckMutex);
+          } else {
+            // Not generic, mark as done
+            EnterCriticalSection(&g_nameCheckMutex);
+            g_renamedSerials.insert(s);
+            LeaveCriticalSection(&g_nameCheckMutex);
           }
-          if (!alreadyQueued)
-            g_nameCheckQueue.push_back(ncItem);
-          LeaveCriticalSection(&g_nameCheckMutex);
-        } else {
-          // Not generic, mark as done
-          EnterCriticalSection(&g_nameCheckMutex);
-          g_renamedSerials.insert(s);
-          LeaveCriticalSection(&g_nameCheckMutex);
-        }
+        } catch (...) {}
       }
     }
   }
@@ -1628,7 +1686,8 @@ DWORD WINAPI NameAssignThread(LPVOID lpParam) {
     std::string reqJson = "[";
     for (size_t i = 0; i < batch.size(); ++i) {
       reqJson += "{\"serial\": " + ToString(batch[i].serial) +
-                 ", \"name\": \"" + EscapeJSON(batch[i].name) +
+                 ", \"persistent_id\": \"" + EscapeJSON(batch[i].persistent_id) +
+                 "\", \"name\": \"" + EscapeJSON(batch[i].name) +
                  "\", \"gender\": \"" + EscapeJSON(batch[i].gender) +
                  "\", \"race\": \"" + EscapeJSON(batch[i].race) +
                  "\", \"is_generic\": " +
@@ -1826,6 +1885,7 @@ extern "C" __declspec(dllexport) void startPlugin() {
     KenshiLib::AddHook((void *)KenshiLib::GetRealAddress(thunkSlave),
                        (void *)setChainedMode_hook,
                        (void **)&setChainedMode_orig);
+
 
   CreateThread(NULL, 0, MainThread, NULL, 0, NULL);
 }

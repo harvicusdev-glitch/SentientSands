@@ -10,6 +10,8 @@ extern MyGUI::ComboBox *g_settingsModel;
 extern MyGUI::EditBox *g_settingsRadii[3];
 extern MyGUI::EditBox *g_settingsEventsCount;
 extern MyGUI::Button *g_settingsAmbientToggle;
+extern MyGUI::Button *g_settingsRenamerToggle;
+extern MyGUI::Button *g_settingsAnimalToggle;
 extern MyGUI::ComboBox *g_settingsCampaign;
 extern MyGUI::EditBox *g_settingsNewCampaignName;
 extern MyGUI::ComboBox *g_settingsHotkey;
@@ -24,6 +26,8 @@ void OnSettingsSaveClick(MyGUI::Widget *sender);
 void OnSettingsTestClick(MyGUI::Widget *sender);
 void OnSettingsRestartClick(MyGUI::Widget *sender);
 void OnSettingsAmbientToggleClick(MyGUI::Widget *sender);
+void OnSettingsRenamerToggleClick(MyGUI::Widget *sender);
+void OnSettingsAnimalToggleClick(MyGUI::Widget *sender);
 void OnSettingsWindowButtonPressed(MyGUI::Window *sender,
                                    const std::string &name);
 DWORD WINAPI SettingsResponseThread(LPVOID lpParam);

@@ -18,6 +18,11 @@ void talksToLLMAsync(const char *npcName, const char *playerName,
 // Check for responses (poll in update loop)
 bool llmGetNextResponse(LLMResponse &outResponse);
 
+bool isLLMActive();
+
+void llmStartActive();
+void llmFinishActive();
+
 void llmCleanup();
 
 } // namespace SentientSands

@@ -5,12 +5,14 @@
 #include <algorithm>
 #include <core/Functions.h>
 #include <kenshi/Character.h>
+#include <kenshi/CharStats.h>
 #include <kenshi/Dialogue.h>
 #include <kenshi/Faction.h>
 #include <kenshi/FactionRelations.h>
 #include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Inventory.h>
+#include <kenshi/Building.h>
 #include <kenshi/Item.h>
 #include <kenshi/Platoon.h>
 #include <kenshi/PlayerInterface.h>
@@ -530,10 +532,12 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
             }
           }
         } else if (act.type == ACT_TAKE_ITEM) {
-          Character *player =
-              (thisptr->player && thisptr->player->playerCharacters.size() > 0)
-                  ? thisptr->player->playerCharacters[0]
-                  : nullptr;
+          Character *player = act.target.isValid() ? act.target.getCharacter() : nullptr;
+          if (!player || (uintptr_t)player < 0x1000) {
+            player = (thisptr->player && thisptr->player->playerCharacters.size() > 0)
+                         ? thisptr->player->playerCharacters[0]
+                         : nullptr;
+          }
           if (player) {
             std::string targetName = act.message;
             size_t fnot = targetName.find_first_not_of(" \t\n\r\"'");
@@ -555,8 +559,6 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
             Log("ACTION_EXEC: NPC " + npc->getName() + " attempting to take " +
                 ToString(count) + "x '" + targetName + "'");
 
-            // Robust loop: Scan for one item at a time since removals can
-            // reorganize inventory
             while (taken < count) {
               std::vector<Item *> pItems;
               GetAllCharacterItems(player, pItems);
@@ -576,23 +578,70 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
               }
 
               if (found) {
-                Log("ACTION_EXEC: Taking item (" + ToString(taken + 1) + "/" +
-                    ToString(count) + "): " + found->getName());
+                int toTake = std::min(found->quantity, (int)(count - taken));
+                Log("ACTION_EXEC: Taking item (" + ToString(taken + toTake) + "/" +
+                    ToString(count) + "): " + found->getName() + " (Qty: " + ToString(toTake) + ")");
+                
                 if (found->isEquipped)
                   player->unequipItem(found->inventorySection, found);
+
                 Inventory *inv = found->getInventory();
                 if (!inv)
                   inv = player->getInventory();
+
                 Item *detached = inv ? inv->removeItemDontDestroy_returnsItem(
-                                           found, found->quantity, false)
+                                           found, toTake, false)
                                      : nullptr;
-                bool success = npc->giveItem(detached ? detached : found, true, false);
-                if (success) {
-                  taken++;
+                
+                if (detached) {
+                  int actualQty = detached->quantity;
+                  bool success = npc->giveItem(detached, true, false);
+                  if (success) {
+                    taken += actualQty;
+                  } else {
+                    // SHOP UPGRADE: Try to put it in a shop counter if they are a trader
+                    bool putInCounter = false;
+                    try {
+                      if (npc->isATrader()) {
+                        const hand &bHandle = npc->isIndoors();
+                        if (bHandle.isValid()) {
+                          Building *b = bHandle.getBuilding();
+                          if (b) {
+                            lektor<Building *> counters;
+                            b->findAllFurnitureWithFunction(counters, BF_SHOP);
+                            for (uint32_t i = 0; i < counters.size(); ++i) {
+                              if (counters[i] && counters[i]->getInventory()) {
+                                if (counters[i]->getInventory()->addItem(
+                                        detached, detached->quantity, false,
+                                        false)) {
+                                  putInCounter = true;
+                                  break;
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    } catch (...) {
+                    }
+
+                    if (putInCounter) {
+                      Log("ACTION_EXEC: NPC " + npc->getName() +
+                          " inventory full. Put item " + detached->getName() +
+                          " into shop counter.");
+                      taken += actualQty;
+                    } else {
+                      Log("ACTION_EXEC: NPC " + npc->getName() +
+                          " inventory full! Item " + detached->getName() +
+                          " destroyed (confiscated).");
+                      thisptr->destroy(detached, false, "confiscated");
+                      taken += actualQty; // Count it as taken for UI messages
+                      break; // Stop taking items if we hit a full inventory
+                    }
+                  }
                 } else {
-                  Log("ACTION_EXEC: NPC " + npc->getName() + " inventory full! Returning item to player.");
-                  player->giveItem(detached ? detached : found, true, false);
-                  break; // Stop taking items if we hit a full inventory
+                  Log("ACTION_EXEC: ERROR: Failed to detach item " + found->getName() + " from player!");
+                  break; 
                 }
               } else {
                 // No more items matching this name
@@ -642,34 +691,62 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
             count = 1;
           int given = 0;
 
-          Character *player =
-              (thisptr->player && thisptr->player->playerCharacters.size() > 0)
-                  ? thisptr->player->playerCharacters[0]
-                  : nullptr;
+          Character *player = act.target.isValid() ? act.target.getCharacter() : nullptr;
+          if (!player || (uintptr_t)player < 0x1000) {
+            player = (thisptr->player && thisptr->player->playerCharacters.size() > 0)
+                         ? thisptr->player->playerCharacters[0]
+                         : nullptr;
+          }
 
           if (player) {
-            for (uint32_t i = 0; i < items.size() && given < count; ++i) {
-              std::string itemName = items[i]->getName();
-              std::transform(itemName.begin(), itemName.end(), itemName.begin(),
-                             ::tolower);
-              if (itemName.find(targetName) != std::string::npos) {
-                Log("ACTION_EXEC: Giving item (" + ToString(given + 1) + "/" +
-                    ToString(count) + "): " + items[i]->getName());
-                if (items[i]->isEquipped)
-                  npc->unequipItem(items[i]->inventorySection, items[i]);
-                Inventory *inv = items[i]->getInventory();
+            while (given < count) {
+              std::vector<Item *> npcItems;
+              GetAllCharacterItems(npc, npcItems);
+              Item *found = nullptr;
+
+              for (uint32_t i = 0; i < npcItems.size(); ++i) {
+                std::string itemName = npcItems[i]->getName();
+                std::transform(itemName.begin(), itemName.end(),
+                               itemName.begin(), ::tolower);
+                if (itemName.find(targetName) != std::string::npos) {
+                  found = npcItems[i];
+                  break;
+                }
+              }
+
+              if (found) {
+                int toGive = std::min(found->quantity, (int)(count - given));
+                Log("ACTION_EXEC: Giving item (" + ToString(given + toGive) + "/" +
+                    ToString(count) + "): " + found->getName() + " (Qty: " + ToString(toGive) + ")");
+                
+                if (found->isEquipped)
+                  npc->unequipItem(found->inventorySection, found);
+                
+                Inventory *inv = found->getInventory();
                 if (!inv)
                   inv = npc->getInventory();
+
                 Item *detached = inv ? inv->removeItemDontDestroy_returnsItem(
-                                           items[i], items[i]->quantity, false)
+                                           found, toGive, false)
                                      : nullptr;
+                
                 if (detached) {
-                  player->giveItem(detached, true, false);
-                  given++;
+                  int actualQty = detached->quantity;
+                  bool success = player->giveItem(detached, true, false);
+                  if (success) {
+                    given += actualQty;
+                  } else {
+                    Log("ACTION_EXEC: Player inventory full! Returning item to NPC.");
+                    npc->giveItem(detached, true, false);
+                    break; // Stop giving items if player is full
+                  }
                 } else {
-                  Log("ACTION_EXEC: Failed to detach " + items[i]->getName() +
-                      " from " + npc->getName() + "'s inventory.");
+                  Log("ACTION_EXEC: ERROR: Failed to detach item " + found->getName() + " from NPC!");
+                  break;
                 }
+              } else {
+                // NPC has no more of this item
+                break;
               }
             }
 
@@ -695,23 +772,14 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
               if (gd) {
                 int toSpawn = count - given;
                 for (int s = 0; s < toSpawn; s++) {
-                  std::string uniqueID =
-                      originalTargetName + "_AI_" +
-                      ToString((unsigned int)GetTickCount()) + "_" +
-                      ToString(s);
-                  GameData *newGd = thisptr->savedata.createNewData(
-                      gd->type, uniqueID, gd->name);
-                  if (newGd) {
-                    newGd->updateFrom(gd, true);
-                    Item *spawned = thisptr->theFactory->createItem(
-                        gd, hand(), NULL, NULL, 0, NULL);
-                    if (spawned) {
-                      spawned->quantity = 1;
-                      spawned->setProperOwner(player->getHandle());
-                      bool success = player->giveItem(spawned, true, false);
-                      if (success)
-                        given++;
-                    }
+                  Item *spawned = thisptr->theFactory->createItem(
+                      gd, hand(), NULL, NULL, 0, NULL);
+                  if (spawned) {
+                    spawned->quantity = 1;
+                    spawned->setProperOwner(player->getHandle());
+                    bool success = player->giveItem(spawned, true, false);
+                    if (success)
+                      given++;
                   }
                 }
               }
@@ -732,11 +800,16 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
             Log("ACTION_EXEC: Skipping GIVE_CATS due to previous transaction failure (" + failureReason + ")");
             continue;
           }
-          if (npc && thisptr->player &&
-                   thisptr->player->playerCharacters.size() > 0) {
+          Character *player = act.target.isValid() ? act.target.getCharacter() : nullptr;
+          if (!player || (uintptr_t)player < 0x1000) {
+            player = (thisptr->player && thisptr->player->playerCharacters.size() > 0)
+                         ? thisptr->player->playerCharacters[0]
+                         : nullptr;
+          }
+          if (npc && player) {
             int amt = act.taskValue;
             if (amt > 0) {
-              thisptr->player->playerCharacters[0]->takeMoney(-amt);
+              player->takeMoney(-amt);
 
               // Avoid no-op transfers to characters already in player faction
               bool alreadyPlayer =
@@ -749,10 +822,12 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
             }
           }
         } else if (act.type == ACT_TAKE_CATS) {
-          Character *p =
-              (thisptr->player && thisptr->player->playerCharacters.size() > 0)
-                  ? thisptr->player->playerCharacters[0]
-                  : nullptr;
+          Character *p = act.target.isValid() ? act.target.getCharacter() : nullptr;
+          if (!p || (uintptr_t)p < 0x1000) {
+            p = (thisptr->player && thisptr->player->playerCharacters.size() > 0)
+                    ? thisptr->player->playerCharacters[0]
+                    : nullptr;
+          }
           if (p) {
             int targetAmt = act.taskValue;
             int pMoney = p->getMoney();
@@ -1073,7 +1148,7 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
                 GameData *materialData = nullptr;
 
                 if (gd->type == WEAPON || gd->type == ARMOUR ||
-                    gd->type == CROSSBOW) {
+                    gd->type == CROSSBOW || gd->type == LIMB_REPLACEMENT) {
                   // 1. Try to find references in the item template itself
                   auto getRef = [&](const std::string &refName) -> GameData * {
                     const Ogre::vector<GameDataReference>::type *refs =
@@ -1094,6 +1169,8 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
                     requiredMeshType = MATERIAL_SPECS_WEAPON;
                   else if (gd->type == ARMOUR)
                     requiredMeshType = MATERIAL_SPECS_CLOTHING;
+                  else if (gd->type == LIMB_REPLACEMENT || gd->type == CROSSBOW)
+                    requiredMeshType = MATERIAL_SPEC; // Both limbs and crossbows often use MATERIAL_SPEC or similar for grades
 
                   // 🛠️ FIX: Weapons use "material" for the grade/quality,
                   // while "mesh" is visual. The factory's 3rd arg expects the
@@ -1118,8 +1195,52 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
                                   (materialData->type != WEAPON_MANUFACTURER);
 
                   if (needsMesh || needsMat) {
+                    // 🛠️ FIX: Scale spawned item quality by NPC's skill.
+                    // This prevents "Prototype" quality gear from late-game NPCs.
+                    int npcSkill = 30;
+                    if (npc && (uintptr_t)npc > 0x1000 && npc->getStats()) {
+                      auto s = npc->getStats();
+                      int s1 = (int)s->getStat(STAT_MELEE_ATTACK, false);
+                      int s2 = (int)s->getStat(STAT_SMITHING_WEAPON, false);
+                      int s3 = (int)s->getStat(STAT_SMITHING_ARMOUR, false);
+                      int s4 = (int)s->getStat(STAT_SCIENCE, false);
+                      int s5 = (int)s->getStat(STAT_ROBOTICS, false);
+                      npcSkill = s1;
+                      if (s2 > npcSkill) npcSkill = s2;
+                      if (s3 > npcSkill) npcSkill = s3;
+                      if (s4 > npcSkill) npcSkill = s4;
+                      if (s5 > npcSkill) npcSkill = s5;
+                      if (npcSkill < 30 && npc->isATrader())
+                        npcSkill = 40; // Traders should at least provide standard gear
+                    }
+
+                    std::string targetGrade = "Standard";
+                    std::string targetMana = "Skeleton Smiths";
+
+                    if (npcSkill > 80) {
+                      targetGrade =
+                          (gd->type == WEAPON) ? "Edge Type 3" : "Masterwork";
+                      targetMana = "Cross";
+                    } else if (npcSkill > 60) {
+                      targetGrade =
+                          (gd->type == WEAPON) ? "Edge Type 1" : "Specialist";
+                      targetMana = "Skeleton Smiths";
+                    } else if (npcSkill > 40) {
+                      targetGrade = (gd->type == WEAPON) ? "Mk I" : "High Grade";
+                      targetMana = "Skeleton Smiths";
+                    } else if (npcSkill < 15) {
+                      targetGrade = (gd->type == WEAPON) ? "Rusted Junk" : "Prototype";
+                      targetMana = "Unknown";
+                    }
+
+                    Log("ACTION_EXEC: Skill " + ToString(npcSkill) +
+                        " -> Target Grade: " + targetGrade);
+
                     GameData *firstMesh = nullptr;
                     GameData *firstMat = nullptr;
+                    int bestMeshScore = 0;
+                    int bestMatScore = 0;
+
                     boost::unordered::unordered_map<std::string,
                                                     GameData *>::iterator it;
 
@@ -1133,22 +1254,38 @@ void ExecuteQueuedActions(GameWorld *thisptr, int &inventoryTimer) {
                                         check->type == requiredMeshType)) {
                         if (!firstMesh)
                           firstMesh = check;
-                        if (check->name.find("Standard") != std::string::npos ||
-                            check->name.find("Catun") != std::string::npos)
+                        if (check->name.find(targetGrade) != std::string::npos) {
                           meshData = check;
+                          bestMeshScore = 2;
+                        } else if (bestMeshScore < 1 &&
+                                   (check->name.find("Standard") !=
+                                        std::string::npos ||
+                                    check->name.find("Catun") !=
+                                        std::string::npos)) {
+                          meshData = check;
+                          bestMeshScore = 1;
+                        }
                       }
 
                       if (needsMat && check->type == WEAPON_MANUFACTURER) {
                         if (!firstMat)
                           firstMat = check;
-                        if (check->name.find("Skeleton Smiths") !=
-                                std::string::npos ||
-                            check->name.find("Standard") != std::string::npos)
+                        if (check->name.find(targetMana) != std::string::npos) {
                           materialData = check;
+                          bestMatScore = 2;
+                        } else if (bestMatScore < 1 &&
+                                   (check->name.find("Skeleton Smiths") !=
+                                        std::string::npos ||
+                                    check->name.find("Standard") !=
+                                        std::string::npos)) {
+                          materialData = check;
+                          bestMatScore = 1;
+                        }
                       }
 
-                      if ((!needsMesh || meshData) &&
-                          (!needsMat || materialData))
+                      bool meshDone = !needsMesh || bestMeshScore == 2;
+                      bool matDone = !needsMat || bestMatScore == 2;
+                      if (meshDone && matDone)
                         break;
                     }
 

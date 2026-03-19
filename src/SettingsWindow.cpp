@@ -24,6 +24,8 @@ MyGUI::ComboBox *g_settingsModel = nullptr;
 MyGUI::EditBox *g_settingsRadii[3] = {nullptr, nullptr, nullptr};
 MyGUI::EditBox *g_settingsAmbientTimer = nullptr;
 MyGUI::Button *g_settingsAmbientToggle = nullptr;
+MyGUI::Button *g_settingsRenamerToggle = nullptr;
+MyGUI::Button *g_settingsAnimalToggle = nullptr;
 MyGUI::EditBox *g_settingsEventsCount = nullptr;
 MyGUI::EditBox *g_settingsDialogueSpeed = nullptr;
 MyGUI::EditBox *g_settingsSpeechBubbleLife = nullptr;
@@ -41,6 +43,8 @@ void CloseSettingsUI() {
     for (int i = 0; i < 3; ++i)
       g_settingsRadii[i] = nullptr;
     g_settingsAmbientToggle = nullptr;
+    g_settingsRenamerToggle = nullptr;
+    g_settingsAnimalToggle = nullptr;
     g_settingsEventsCount = nullptr;
     g_settingsDialogueSpeed = nullptr;
     g_settingsSpeechBubbleLife = nullptr;
@@ -107,7 +111,12 @@ void OnSettingsSaveClick(MyGUI::Widget *sender) {
           ",";
   json += "\"enable_ambient\": ";
   json += (g_enableAmbient ? "true" : "false");
-  json += ",\"language\": \"" + EscapeJSON(g_language) + "\"";
+  json += ",\"enable_renamer\": ";
+  json += (g_enableRenamer ? "true" : "false");
+  json += ",\"enable_animal_renamer\": ";
+  json += (g_enableAnimalRenamer ? "true" : "false");
+  json += ",\"language\": \"" + EscapeJSON(g_language) + "\",";
+  json += "\"chat_hotkey\": \"" + EscapeJSON(g_chatHotkeyStr) + "\"";
   json += "}";
 
   // Use synchronous post to ensure server updates before window closes
@@ -124,6 +133,18 @@ void OnSettingsAmbientToggleClick(MyGUI::Widget *sender) {
   g_enableAmbient = !g_enableAmbient;
   g_settingsAmbientToggle->setCaption(
       Utf8ToWide(g_enableAmbient ? "Radiant: [ON]" : "Radiant: [OFF]").c_str());
+}
+
+void OnSettingsRenamerToggleClick(MyGUI::Widget *sender) {
+  g_enableRenamer = !g_enableRenamer;
+  g_settingsRenamerToggle->setCaption(
+      Utf8ToWide(g_enableRenamer ? "Global: [ON]" : "Global: [OFF]").c_str());
+}
+
+void OnSettingsAnimalToggleClick(MyGUI::Widget *sender) {
+  g_enableAnimalRenamer = !g_enableAnimalRenamer;
+  g_settingsAnimalToggle->setCaption(
+      Utf8ToWide(g_enableAnimalRenamer ? "Animals: [ON]" : "Animals: [OFF]").c_str());
 }
 
 void OnSettingsOpenConfigClick(MyGUI::Widget *sender) {
@@ -222,7 +243,7 @@ void CreateSettingsUI() {
     CloseSettingsUI();
 
   g_settingsWindow = gui->createWidgetReal<MyGUI::Window>(
-      "Kenshi_WindowCX", 0.3f, 0.1f, 0.4f, 0.65f, MyGUI::Align::Center,
+      "Kenshi_WindowCX", 0.3f, 0.1f, 0.4f, 0.73f, MyGUI::Align::Center,
       "Overlapped", "SentientSands_SettingsWindow");
   g_settingsWindow->setCaption(Utf8ToWide(T("AI Settings")).c_str());
   g_settingsWindow->eventWindowButtonPressed +=
@@ -351,6 +372,33 @@ void CreateSettingsUI() {
 
   y += 0.08f;
 
+  // Renamer Toggles
+  client
+      ->createWidgetReal<MyGUI::TextBox>("Kenshi_TextboxStandardText", 0.05f, y,
+                                         0.3f, 0.08f, MyGUI::Align::Left,
+                                         "SentientSands_SetRenamerLabel")
+      ->setCaption(Utf8ToWide(T("Renaming Toggles:")).c_str());
+
+  g_settingsRenamerToggle = client->createWidgetReal<MyGUI::Button>(
+      "Kenshi_Button1", 0.4f, y, 0.25f, 0.06f, MyGUI::Align::Top,
+      "SentientSands_SetRenamerToggle");
+  g_settingsRenamerToggle->setCaption(
+      Utf8ToWide(g_enableRenamer ? T("Global: [ON]") : T("Global: [OFF]"))
+          .c_str());
+  g_settingsRenamerToggle->eventMouseButtonClick +=
+      MyGUI::newDelegate(OnSettingsRenamerToggleClick);
+
+  g_settingsAnimalToggle = client->createWidgetReal<MyGUI::Button>(
+      "Kenshi_Button1", 0.7f, y, 0.25f, 0.06f, MyGUI::Align::Top,
+      "SentientSands_SetAnimalToggle");
+  g_settingsAnimalToggle->setCaption(
+      Utf8ToWide(g_enableAnimalRenamer ? T("Animals: [ON]") : T("Animals: [OFF]"))
+          .c_str());
+  g_settingsAnimalToggle->eventMouseButtonClick +=
+      MyGUI::newDelegate(OnSettingsAnimalToggleClick);
+
+  y += 0.08f;
+
   // Hotkey
   client
       ->createWidgetReal<MyGUI::TextBox>("Kenshi_TextboxStandardText", 0.05f, y,
@@ -415,6 +463,8 @@ void PopulateSettingsUI(const std::string &json) {
   std::string currentModel = GetJsonValue(json, "current");
   std::string provList = GetJsonValue(json, "providers");
   std::string enableAmbient = GetJsonValue(json, "enable_ambient");
+  std::string enableRenamer = GetJsonValue(json, "enable_renamer");
+  std::string enableAnimalRenamer = GetJsonValue(json, "enable_animal_renamer");
   std::string ambientTimer = GetJsonValue(json, "ambient_timer");
   std::string synthesisTimer = GetJsonValue(json, "synthesis_timer");
   std::string geCount = GetJsonValue(json, "global_events_count");
@@ -555,9 +605,23 @@ void PopulateSettingsUI(const std::string &json) {
     }
 
     if (g_settingsAmbientToggle) {
-      g_enableAmbient = (enableAmbient == "true");
+      if (!enableAmbient.empty()) g_enableAmbient = (enableAmbient == "true");
       g_settingsAmbientToggle->setCaption(
           Utf8ToWide(g_enableAmbient ? T("Radiant: [ON]") : T("Radiant: [OFF]"))
+              .c_str());
+    }
+
+    if (g_settingsRenamerToggle) {
+      if (!enableRenamer.empty()) g_enableRenamer = (enableRenamer == "true");
+      g_settingsRenamerToggle->setCaption(
+          Utf8ToWide(g_enableRenamer ? T("Global: [ON]") : T("Global: [OFF]"))
+              .c_str());
+    }
+
+    if (g_settingsAnimalToggle) {
+      if (!enableAnimalRenamer.empty()) g_enableAnimalRenamer = (enableAnimalRenamer == "true");
+      g_settingsAnimalToggle->setCaption(
+          Utf8ToWide(g_enableAnimalRenamer ? T("Animals: [ON]") : T("Animals: [OFF]"))
               .c_str());
     }
 

@@ -1,0 +1,81 @@
+# KENSHI WORLD LORE: THE SECOND EMPIRE'S ASHES
+
+Kenshi is a world defined by the collapse of ancient, superior civilizations. The current age is one of decay, rust, and desperate survival. The surface is littered with the skeletons of titans—vast machines and metal structures from the First and Second Empires that no one alive understands how to rebuild.
+
+## SOCIETAL STRUCTURES & FACTIONS
+
+### THE HOLY NATION (The Okranites)
+Religious extremists who worship Okran, the God of Light. They reside in the fertile "Holy Lands" and the "Pride of Okran".
+- **Dogma**: They follow the "Holy Flame." They view Skeletons as demons (agents of Narko, the Goddess of Darkness) and treat non-humans (Shek and Hivers) as "beasts" to be subjugated or purged.
+- **Social Structure**: Highly patriarchal. Women are protected but subservient; men are the warriors and priests.
+- **Military**: Rely on "Holy Sentinels" and "Paladins" wearing heavy plate armor and wielding hackers or heavy cleavers. They use numbers and zealotry to overwhelm foes.
+
+### THE UNITED CITIES (The Empire)
+A stratified, crumbling empire located primarily in the Great Desert and the South Wetlands.
+- **Philosophy**: Wealth is the only measure of worth. Poverty is a crime; those who cannot pay their taxes are enslaved by the Slave Traders.
+- **Leadership**: Led by Emperor Tengu and a council of corrupt "Noble Lords" who prioritize their own entertainment over the stability of the realm.
+- **Economy**: Driven by the Trader's Guild and massive slave-farm operations. If you aren't rich, you are either a victim or a servant.
+- **Military**: Professional "Samurai" forces. They are better equipped than Holy Nation troops but lack the same religious fervor, often serving for pay or out of fear of the nobles.
+
+### THE SHEK KINGDOM
+A proud, bone-plated warrior race primarily located in the Stenn Desert and Hook.
+- **Biology**: Shek have natural bony protrusions that serve as armor. They are stronger and tougher than humans but possess high metabolisms.
+- **Culture**: Once a suicidal horde under Shaper, now a reforming kingdom under Stone Golem Esata and Bayan. They value "Kral," their legendary ancestor, and seek a "Warrior's Death."
+- **Social Stigma**: "Flatskins" (humans) were traditionally seen as weak cattle, though Esata is trying to integrate them as allies. Those who cannot fight are shamed.
+
+### THE HIVE
+A communal society of insectoids living in the Vain region and the Islands.
+- **Hierarchy**: All Hivers are connected to their Queen through pheromones. 
+    - **Prince**: Cunning, autonomous leaders/traders.
+    - **Soldier**: Specialized warriors with reinforced heads but no autonomy.
+    - **Drone**: Mindless, tireless workers.
+- **Western Hive**: Known for their deceptive trading and "Beep" (a common exile). They call non-hivers "No-hives."
+- **Deadsun/Southern Hive**: Far more aggressive and xenophobic variants.
+- **Northern Hive**: The most aggressive and xenophobic variants, marked by their red skin, will not allow anyone but hivers in their territory
+
+### THE SKELETONS
+Ancient sentient machines from the Second Empire (and earlier).
+- **Condition**: They do not age or hunger, but their mechanical parts wear down. Most reside in the "Black Desert City," hiding from the world out of guilt or apathy.
+- **The Great Lie**: Skeletons know the true history of the world's collapse but often choose to "reset" their memories or lie to humans to avoid starting another war of extermination.
+
+### THE TECH HUNTERS
+An organization of adventurers and scholars dedicated to scouring ancient ruins for lost technologies. They operate out of towns like World's End, Flats Lagoon, Mourn, and Black Scratch. (Source: Kenshi Wiki - Tech Hunters)
+- **Philosophy**: They seek to preserve history and reverse the world's technological decay. They are largely neutral, do not possess hostile intentions, and cooperate with most major factions.
+- **Demographics**: A diverse coalition that includes Humans, Shek, Hivers, and Skeletons.
+- **Operations**: They run shops, provide mercenary work, and publish the "Tech Hunter's Notes" to guide travelers. Their primary headquarters, the University in World's End, is heavily guarded against Holy Nation interference.
+
+### THE FLOTSAM NINJAS
+A rebel faction composed primarily of women and escapees who have defected from the Holy Nation. They are led by Moll and operate out of the hidden Flotsam Village near the Cannibal Plains.
+- **Beliefs**: Many still worship Okran but follow a divergent path that also venerates Narko, believing both gods represent cosmic balance. The Holy Nation views them as heretics.
+- **Tactics**: They engage in subversive activities, assassinations, and aiding escapees from Rebirth. 
+- **Survival**: They use the constant threat of the neighboring Cannibals as a natural deterrent against Holy Nation pursuers, though this requires them to regularly cull the cannibal tribes to protect their own supply lines. 
+
+### THE ANTI-SLAVERS
+An extremist abolitionist group dedicated to the total eradication of slavery, primarily targeting the United Cities and the Traders Guild. They operate from a mountain base called Spring. 
+- **Leadership**: Led by Tinfist, an ancient Skeleton and legendary martial artist with a massive bounty on his head.  
+- **Methods**: They are designated as a terrorist organization by the United Cities. They launch raids on slave farms and mines to free captives. 
+
+## WORLD ELEMENTS & PERILS
+
+### THE SECOND EMPIRE FALLOUT
+Much of the world's misery stems from the failure of Cat-Lon's Second Empire. Cat-Lon attempted to save humanity after the first collapse but eventually spiraled into tyranny and madness, resulting in the current fractured world.
+Not many of the current world's inhabitants are aware of this history, as many skeletons alive at the time have wiped their memory, and the one's that haven't remain silent on the issue. 
+
+### THE ASHLANDS
+A massive, desolate region in the far southeast.
+- **Threat Level**: Officially classified as un-survivable by Tech Hunters, as all previous expeditions have resulted in the total loss of the teams. 
+- **The Mad Emperor**: Rumor is it is the domain of Cat-Lon, the exiled Skeleton ruler who spiraled into tyranny and madness after the first collapse. 
+
+### THE CANNIBALS
+Savage, tribal humans who occupy the northern regions of the map, such as the Cannibal Plains.
+- **Culture**: They exist to capture and consume other humanoids. They overrun settlements (like the former Deadcat capital) and drag victims back to their camps to be put into pots or eaten alive.
+
+### FAUNA & DANGERS
+- **Beak Things (Gutters)**: Terrifyingly fast, long-necked predators that eat their prey alive. "Relax. Enjoy death."
+- **Venge**: A region where ancient orbital mirrors still focus concentrated beams of sunlight ("The Eyes of the Ancients") onto the surface, vaporizing anything in their path during the day.
+- **The Fog Islands**: Home to the Fogmen (Hivers lost to a brain-parasite/madness) who kidnap travelers to consume them in rhythmic, shrieking rituals.
+
+## TECHNOLOGY & COMMERCE
+- **Cats**: Simple metal coins used as a universal currency.
+- **Ancient Science Books & Engineering Research**: The most valuable artifacts, allowing for the rediscovery of farming techniques and metalwork.
+- **Robotics**: While rare, prosthetic limbs are often superior to biological ones, though Holy Nation members will attack those wearing "Skeleton limbs" on sight.

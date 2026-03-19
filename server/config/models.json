@@ -50,5 +50,13 @@
     "ollama-llama3": {
         "provider": "ollama",
         "model": "llama3"
+    },
+    "qwen3.5-9b": {
+        "provider": "lmstudio_local",
+        "model": "qwen3.5-9b"
+    },
+    "meta-llama-3.1-8b-instruct": {
+        "provider": "lmstudio_local",
+        "model": "meta-llama-3.1-8b-instruct@q6_k_l"
     }
 }

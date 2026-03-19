@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentience Dashboard | Kenshi AI Debugger</title>
+    <style>
+        :root {
+            --bg-dark: #0a0a0c;
+            --panel-bg: rgba(20, 20, 25, 0.9);
+            --accent: #e67e22;
+            --accent-glow: rgba(230, 126, 34, 0.4);
+            --text-main: #e0e0e0;
+            --text-dim: #999;
+            --border: #444;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --info: #3498db;
+            --font-family: 'Consolas', 'Monaco', 'Segoe UI', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-bottom: 2px solid var(--accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            color: var(--success);
+        }
+
+        main {
+            display: grid;
+            grid-template-columns: 380px 1fr 420px;
+            flex: 1;
+            gap: 10px;
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .panel-header {
+            padding: 6px 12px;
+            background: #1a1a1f;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .scrollable {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-left: 2px solid var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .stat-mini-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            margin-top: 5px;
+        }
+
+        .stat-mini {
+            text-align: center;
+            background: #000;
+            padding: 2px;
+            font-size: 0.7rem;
+        }
+
+        .stat-mini-val {
+            color: var(--info);
+            font-weight: bold;
+        }
+
+        /* Inventory */
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px;
+            border-bottom: 1px solid #222;
+            font-size: 0.75rem;
+        }
+
+        .item-equipped {
+            color: var(--success);
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        /* Controls */
+        .control-group {
+            margin-bottom: 15px;
+            border: 1px solid #333;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .control-label {
+            font-size: 0.65rem;
+            color: var(--accent);
+            margin-bottom: 6px;
+            display: block;
+            border-bottom: 1px solid #333;
+        }
+
+        button {
+            background: #222;
+            color: #eee;
+            border: 1px solid #444;
+            padding: 5px 10px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+
+        button:hover {
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+        }
+
+        button.active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .btn-fill {
+            flex: 1;
+        }
+
+        input,
+        select,
+        textarea {
+            background: #000;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 4px;
+            font-size: 0.75rem;
+            width: 100%;
+            font-family: inherit;
+        }
+
+        /* Logs */
+        .log-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .log-tabs {
+            display: flex;
+            background: #111;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-tab {
+            padding: 8px 15px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .log-tab.active {
+            background: var(--panel-bg);
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+        }
+
+        #log-display {
+            flex: 1;
+            background: #050508;
+            color: #aaa;
+            font-size: 0.75rem;
+            padding: 10px;
+            white-space: pre-wrap;
+            overflow-y: scroll;
+        }
+
+        .log-err {
+            color: var(--danger);
+        }
+
+        .log-warn {
+            color: #f1c40f;
+        }
+
+        .log-info {
+            color: #2ecc71;
+        }
+
+        .log-debug {
+            color: #7f8c8d;
+        }
+
+        /* Timers */
+        .timer-row {
+            margin-bottom: 10px;
+        }
+
+        .timer-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            margin-bottom: 2px;
+        }
+
+        .progress-bg {
+            background: #111;
+            height: 6px;
+            border: 1px solid #333;
+        }
+
+        .progress-fill {
+            background: var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.4;
+            }
+        }
+
+        .live-indicator {
+            height: 8px;
+            width: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Sentience Dashboard <span style="font-size: 0.7rem; opacity: 0.4;">Kenshi AI Project</span>
+        </div>
+        <div id="status-line" class="status-badge"><span class="live-indicator"></span>LINK: ESTABLISHED | CAMPAIGN:
+            <span id="camp-name">DEFAULT</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- LEFT: STATES -->
+        <section class="panel">
+            <div class="panel-header">Vital Statistics</div>
+            <div class="scrollable">
+                <!-- Player -->
+                <div class="control-label">Player [Main]</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Faction</div>
+                        <div id="p-fac" class="stat-value">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Cats</div>
+                        <div id="p-money" class="stat-value" style="color: #f1c40f;">0</div>
+                    </div>
+                </div>
+                <div class="stat-mini-grid">
+                    <div class="stat-mini">S: <span id="p-s" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">D: <span id="p-d" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">T: <span id="p-t" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">P: <span id="p-p" class="stat-mini-val">--</span></div>
+                </div>
+                <div style="height: 10px;"></div>
+
+                <!-- NPC -->
+                <div class="control-label">Target NPC [Context]</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Name</div>
+                        <div id="n-name" class="stat-value" style="color: var(--accent);">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Goal / Job</div>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <div id="n-goal" class="stat-value" style="font-size: 0.75rem; overflow: hidden; white-space: nowrap;">--</div>
+                            <div id="n-job" class="stat-value" style="font-size: 0.70rem; overflow: hidden; white-space: nowrap; color: var(--info);">--</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Relation</div>
+                        <div id="n-rel" class="stat-value">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Faction</div>
+                        <div id="n-fac" class="stat-value" style="color: var(--info);">--</div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Race</div>
+                        <div id="n-race" class="stat-value">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Cats</div>
+                        <div id="n-money" class="stat-value" style="color: #f1c40f;">0</div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Blood</div>
+                        <div id="n-blood" class="stat-value" style="color: var(--danger);">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Hunger</div>
+                        <div id="n-hunger" class="stat-value">--</div>
+                    </div>
+                </div>
+                <div class="stat-mini-grid">
+                    <div class="stat-mini">S: <span id="n-s" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">D: <span id="n-d" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">T: <span id="n-t" class="stat-mini-val">--</span></div>
+                    <div class="stat-mini">P: <span id="n-p" class="stat-mini-val">--</span></div>
+                </div>
+                <div style="font-size: 0.65rem; color: var(--text-dim); text-align: center; margin-bottom: 10px; padding: 4px; background: rgba(0,0,0,0.3);">
+                    RT: <span id="n-rt" style="color:var(--info);">--</span> | PER: <span id="n-per" style="color:var(--info);">--</span>
+                </div>
+
+                <div class="control-label">Target Inventory</div>
+                <div id="n-inv" class="panel" style="max-height: 300px; background: #000;">
+                    <!-- Items -->
+                </div>
+            </div>
+        </section>
+
+        <!-- CENTER: LOGS -->
+        <section class="panel">
+            <div class="log-container">
+                <div class="log-tabs">
+                    <div class="log-tab active" onclick="switchTab('server')">LLM Server</div>
+                    <div class="log-tab" onclick="switchTab('llm_debug')">LLM Debug</div>
+                    <div class="log-tab" onclick="switchTab('events')">Engine Events</div>
+                    <div id="log-stat" style="margin-left: auto; padding: 8px; font-size: 0.6rem; color: #555;">OFFSET:
+                        0</div>
+                </div>
+                <div id="log-display"></div>
+                <div class="panel-header" style="background: #000;">
+                    <span>System Shell</span>
+                    <button onclick="clearLogs()"
+                        style="padding: 0 4px; border: none; font-size: 0.6rem;">Clear</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT: ACTIONS -->
+        <section class="panel">
+            <div class="panel-header">Control Matrix</div>
+            <div class="scrollable">
+
+                <div class="control-group">
+                    <span class="control-label">Direct Dialogue Injection</span>
+                    <textarea id="diag-msg" rows="3" placeholder="Enter message..."></textarea>
+                    <div class="btn-row">
+                        <button class="btn-fill" onclick="pipe('PLAYER_SAY: ' + val('diag-msg'))">Player Say</button>
+                        <button class="btn-fill" onclick="pipe('NPC_SAY: ' + val('diag-msg'))">NPC Say</button>
+                    </div>
+                    <button class="btn-fill" style="width: 100%; margin-top: 4px;"
+                        onclick="pipe('NOTIFY: ' + val('diag-msg'))">Sentient Notification</button>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Squad & Interaction</span>
+                    <div class="btn-row">
+                        <button class="btn-fill" onclick="action('[ACTION: JOIN_PARTY]')">Recruit</button>
+                        <button class="btn-fill" onclick="safeDismiss()">Dismiss</button>
+                        <button class="btn-fill" onclick="action('[ACTION: ATTACK]')"
+                            style="border-color: var(--danger);">Attack</button>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn-fill" onclick="action('[ACTION: FOLLOW_PLAYER]')">Follow</button>
+                        <button class="btn-fill" onclick="action('[ACTION: IDLE]')">Idle</button>
+                        <button class="btn-fill" onclick="action('[ACTION: PATROL_TOWN]')">Patrol</button>
+                        <button class="btn-fill" onclick="action('[ACTION: RELEASE_PLAYER]')">Release Player</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Advanced Actions</span>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <select id="goal-sel" style="flex: 2; margin-right: 4px;">
+                            <option value="IDLE">IDLE</option>
+                            <option value="WANDERER">WANDERER</option>
+                            <option value="PATROL_TOWN">PATROL_TOWN</option>
+                            <option value="RUN_AWAY">RUN_AWAY</option>
+                            <option value="FOLLOW_PLAYER_ORDER">FOLLOW_PLAYER_ORDER</option>
+                            <option value="MELEE_ATTACK">MELEE_ATTACK</option>
+                        </select>
+                        <button class="btn-fill" onclick="action('[ACTION:TASK:' + val('goal-sel') + ']')">Set Goal</button>
+                    </div>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <input id="fac-rel-val" type="number" value="10" style="flex: 2; margin-right: 4px;">
+                        <button class="btn-fill" onclick="setFactionRel()">Set Relation</button>
+                    </div>
+                    <div class="btn-row">
+                        <input id="take-item-name" type="text" value="Raw Meat" style="flex: 2; margin-right: 4px;">
+                        <button class="btn-fill" onclick="action('[ACTION: TAKE_ITEM: ' + val('take-item-name') + ']')">Take Item</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Spawn Item</span>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <input id="sp-tpl" type="text" value="Book" placeholder="Template" style="flex: 1; margin-right: 2px;">
+                        <input id="sp-name" type="text" value="Bounty Post" placeholder="Name" style="flex: 1; margin-left: 2px;">
+                    </div>
+                    <input id="sp-desc" type="text" value="WANTED: Red Sabre Leader" placeholder="Description" style="margin-bottom: 4px;">
+                    <button style="width: 100%;" onclick="action('[ACTION: SPAWN_ITEM: ' + val('sp-tpl') + ' | ' + val('sp-name') + ' | ' + val('sp-desc') + ']')">Spawn Item</button>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Economy & Goods</span>
+                    <div class="btn-row">
+                        <input id="cat-amt" type="number" value="1000" style="width: 80px;">
+                        <button class="btn-fill" onclick="action('[ACTION: GIVE_CATS: ' + val('cat-amt') + ']')">Give
+                            Cats</button>
+                        <button class="btn-fill" onclick="action('[ACTION: TAKE_CATS: ' + val('cat-amt') + ']')">Take
+                            Cats</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Trade Normalization Test</span>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <input id="test-trade-input" type="text" placeholder="e.g. some dusty tomes" style="flex: 2; margin-right: 4px;">
+                        <button class="btn-fill" onclick="testTradeTag()">Test Alias</button>
+                    </div>
+                    <div id="trade-test-result" style="font-size: 0.7rem; color: var(--info); word-break: break-all; min-height: 14px;">--</div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">AI System Settings</span>
+                    <div style="font-size: 0.65rem; margin-bottom: 5px;">Model: <span id="cur-model"
+                            style="color: var(--info);">--</span></div>
+                    <select id="model-select" onchange="updateModel(this.value)">
+                        <!-- Options filled by JS -->
+                    </select>
+
+                    <div class="btn-row" style="margin-top: 10px; align-items: center;">
+                        <span style="font-size: 0.65rem; flex: 1;">Radiant Banter:</span>
+                        <input type="checkbox" id="ambient-toggle" checked onclick="toggleAmbient(this.checked)"
+                            style="width: auto;">
+                    </div>
+
+                    <div class="timer-row" style="margin-top: 10px;">
+                        <div class="timer-meta"><span>Radiant Reset</span><span id="t-rad">--/--</span></div>
+                        <div class="progress-bg">
+                            <div id="p-rad" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div class="timer-row">
+                        <div class="timer-meta"><span>Speech Cooldown</span><span id="t-sp">--/--</span></div>
+                        <div class="progress-bg">
+                            <div id="p-sp" class="progress-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Identity & Profiles Testing</span>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <button class="btn-fill" onclick="testRegenerateProfile()">Regen Profile</button>
+                        <button class="btn-fill" onclick="testListCharacters()">List Characters</button>
+                    </div>
+                    <div class="btn-row" style="margin-bottom: 4px;">
+                        <input id="test-rename-input" type="text" placeholder="New Name" style="flex: 2; margin-right: 4px;">
+                        <button class="btn-fill" onclick="testRenameCharacter()">Rename Target</button>
+                    </div>
+                    <div id="identity-test-result" style="font-size: 0.7rem; color: var(--info); word-break: break-all; min-height: 14px;">--</div>
+                </div>
+
+                <div class="control-group">
+                    <span class="control-label">Utility Commands</span>
+                    <div class="btn-row">
+                        <button class="btn-fill" onclick="pipe('CMD: TRIGGER_AMBIENT')">Force Banter</button>
+                        <button class="btn-fill" onclick="pipe('CMD: TRACE_CONTEXT')">Trace State</button>
+                        <button class="btn-fill" onclick="apiCmd('MANUAL_SYNTHESIZE')">Synthesize</button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentTab = 'server';
+        let lastServerLogSize = 0;
+        let lastLLMDebugLogSize = 0;
+        let lastEventLogSize = 0;
+        let activeNpcData = { name: '', id: 0 };
+        let isServerAlive = false;
+
+        const val = (id) => document.getElementById(id).value;
+        const set = (id, html) => { if (document.getElementById(id)) document.getElementById(id).innerHTML = html; };
+
+        let activeFactionID = 'Unknown';
+        
+        function safeDismiss() {
+            if (activeFactionID && activeFactionID !== 'Unknown') {
+                action('[ACTION: LEAVE: ' + activeFactionID + ']');
+            } else {
+                action('[ACTION: LEAVE]');
+            }
+        }
+        
+        function setFactionRel() {
+            let faction = activeFactionID || 'Unknown';
+            let v = val('fac-rel-val');
+            if (faction && faction !== 'Unknown') {
+                action('[ACTION:FACTION_RELATIONS:' + faction + ':' + v + ']');
+            }
+        }
+
+        let pollModelsCounter = 0;
+        async function poll() {
+            try {
+                // Heartbeat to check if server is REALLY there
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+                const resp = await fetch('/context', { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                const data = await resp.json();
+                isServerAlive = true;
+                updateDisplay(data);
+                updateStatusLine(true, data.campaign);
+
+                // Polling models/settings much less frequently (every 10 seconds)
+                pollModelsCounter++;
+                if (pollModelsCounter >= 10) {
+                    pollModelsCounter = 0;
+                    const modResp = await fetch('/models');
+                    if (modResp.ok) {
+                        const modData = await modResp.json();
+                        updateModels(modData);
+                    }
+                }
+
+            } catch (e) {
+                isServerAlive = false;
+                updateStatusLine(false);
+                set('n-name', '<span style="color:var(--danger)">OFFLINE</span>');
+            }
+            setTimeout(poll, 1000);
+        }
+
+        function updateStatusLine(alive, campaign = '---') {
+            const el = document.getElementById('status-line');
+            if (alive) {
+                el.innerHTML = `<span class="live-indicator"></span>LINK: ESTABLISHED | CAMPAIGN: <span id="camp-name">${campaign}</span>`;
+                el.style.color = 'var(--success)';
+            } else {
+                el.innerHTML = `<span class="live-indicator" style="background:var(--danger)"></span>LINK: DISCONNECTED | RECONNECTING...`;
+                el.style.color = 'var(--danger)';
+            }
+        }
+
+        async function pollLogs() {
+            if (!isServerAlive) {
+                setTimeout(pollLogs, 2000);
+                return;
+            }
+            try {
+                const logName = currentTab === 'server' ? 'server.log' :
+                    (currentTab === 'events' ? 'global_events.log' : 'llm_debug.log');
+                const resp = await fetch(`/api/logs/${logName}`);
+                if (resp.ok) {
+                    const text = await resp.text();
+                    const logSize = text.length;
+
+                    if (currentTab === 'server') {
+                        if (logSize !== lastServerLogSize) {
+                            const delta = lastServerLogSize === 0 || logSize < lastServerLogSize ? text : text.slice(lastServerLogSize);
+                            lastServerLogSize = logSize;
+                            appendLog(delta);
+                        }
+                    } else if (currentTab === 'events') {
+                        if (logSize !== lastEventLogSize) {
+                            const delta = lastEventLogSize === 0 || logSize < lastEventLogSize ? text : text.slice(lastEventLogSize);
+                            lastEventLogSize = logSize;
+                            appendLog(delta);
+                        }
+                    } else if (currentTab === 'llm_debug') {
+                        if (logSize !== lastLLMDebugLogSize) {
+                            const delta = lastLLMDebugLogSize === 0 || logSize < lastLLMDebugLogSize ? text : text.slice(lastLLMDebugLogSize);
+                            lastLLMDebugLogSize = logSize;
+                            appendLog(delta);
+                        }
+                    }
+                    set('log-stat', `SIZE: ${(logSize / 1024).toFixed(1)}KB`);
+                }
+            } catch (e) { }
+            setTimeout(pollLogs, 1500);
+        }
+
+        function appendLog(delta) {
+            if (!delta) return;
+            const logEl = document.getElementById('log-display');
+            const lines = delta.split('\n');
+            lines.forEach(line => {
+                if (!line.trim()) return;
+                const div = document.createElement('div');
+                if (line.includes('ERROR')) div.className = 'log-err';
+                else if (line.includes('WARNING')) div.className = 'log-warn';
+                else if (line.includes('INFO')) div.className = 'log-info';
+                else if (line.includes('DEBUG')) div.className = 'log-debug';
+                div.textContent = line;
+                logEl.appendChild(div);
+            });
+            logEl.scrollTop = logEl.scrollHeight;
+            if (logEl.childNodes.length > 500) {
+                for (let i = 0; i < 100; i++) logEl.removeChild(logEl.firstChild);
+            }
+        }
+
+        function updateDisplay(data) {
+            const p = data.player || {};
+            const n = data.npc || {};
+
+            // Player Stats
+            set('p-fac', p.faction || '--');
+            set('p-money', (p.money || 0).toLocaleString());
+            const ps = p.stats || {};
+            set('p-s', Math.floor(ps.strength || 0));
+            set('p-d', Math.floor(ps.dexterity || 0));
+            set('p-t', Math.floor(ps.toughness || 0));
+            set('p-p', Math.floor(ps.perception || 0));
+
+            // NPC Discovery
+            if (n && (n.name || n.id)) {
+                activeNpcData = { name: n.name || 'Unknown', id: n.id || 0 };
+                set('n-name', (n.name || 'Unknown').split('|')[0]);
+                set('n-goal', n.goal || 'None');
+                set('n-job', n.job || 'None');
+                set('n-blood', Math.floor(n.medical?.blood || 0));
+                set('n-hunger', Math.floor(n.medical?.hunger || 0));
+                set('n-fac', n.faction || '--');
+                set('n-race', n.race || '--');
+                set('n-money', (n.money || 0).toLocaleString());
+                
+                activeFactionID = n.factionID || n.faction || 'Unknown';
+
+                const rel = n.relation || 0;
+                let relCol = '#f1c40f';
+                if (rel > 25) relCol = '#2ecc71';
+                else if (rel < -25) relCol = '#e74c3c';
+                set('n-rel', `<span style="color: ${relCol}">${rel > 0 ? '+' : ''}${rel}</span>`);
+
+                const ns = n.stats || {};
+                set('n-s', Math.floor(ns.strength || 0));
+                set('n-d', Math.floor(ns.dexterity || 0));
+                set('n-t', Math.floor(ns.toughness || 0));
+                set('n-p', Math.floor(ns.perception || 0));
+
+                set('n-rt', n.runtime_id || '--');
+                set('n-per', n.persistent_id || '--');
+
+                const invHtml = (n.inventory || []).map(item => `
+                    <div class="item-row">
+                        <span class="${item.equipped ? 'item-equipped' : ''}">${item.name} (x${item.count}) ${item.equipped ? '[' + item.slot + ']' : ''}</span>
+                        <div class="item-actions">
+                            <button onclick="action('[ACTION: GIVE_ITEM: ${item.name}]')">GV</button>
+                            <button onclick="action('[ACTION: DROP_ITEM: ${item.name}]')">DR</button>
+                        </div>
+                    </div>
+                `).join('');
+                set('n-inv', invHtml || '<div style="padding:10px; color:#555; font-size:0.7rem;">Inventory Empty</div>');
+            } else {
+                set('n-name', '<span style="color:var(--text-dim)">WAITING FOR TARGET...</span>');
+            }
+
+            // Timers
+            const radNow = data.radiant_timer_ms || p.radiant_timer_ms || 0;
+            const radMax = data.radiant_interval_ms || p.radiant_interval_ms || 120000;
+            set('t-rad', `${Math.floor(radNow / 1000)}s / ${Math.floor(radMax / 1000)}s`);
+            document.getElementById('p-rad').style.width = Math.min(100, (radNow / radMax) * 100) + '%';
+
+            const spNow = data.speech_delay_ms || p.speech_delay_ms || 0;
+            const spMax = data.speech_interval_ms || p.speech_interval_ms || 5000;
+            set('t-sp', `${(spNow / 1000).toFixed(1)}s / ${(spMax / 1000).toFixed(1)}s`);
+            document.getElementById('p-sp').style.width = Math.min(100, (spNow / spMax) * 100) + '%';
+        }
+
+        function updateModels(data) {
+            set('cur-model', data.current);
+            const select = document.getElementById('model-select');
+            if (select.options.length === 0) {
+                Object.keys(data.models).forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    if (m === data.current) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            }
+            document.getElementById('ambient-toggle').checked = data.enable_ambient;
+        }
+
+        async function pipe(msg) {
+            // Header injection for NPC cmds
+            let finalMsg = msg;
+            if (msg.startsWith('NPC_') && activeNpcData.name) {
+                const header = `${activeNpcData.name}|${activeNpcData.id}: `;
+                if (msg.startsWith('NPC_SAY:')) finalMsg = 'NPC_SAY: ' + header + msg.slice(8);
+                if (msg.startsWith('NPC_ACTION:')) finalMsg = 'NPC_ACTION: ' + header + msg.slice(11);
+            }
+
+            try {
+                await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: finalMsg })
+                });
+            } catch (e) { }
+        }
+
+        function action(tag) { pipe('NPC_ACTION: ' + tag); }
+
+        async function apiCmd(cmd) {
+            await fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            });
+        }
+
+        async function testTradeTag() {
+            const item = val('test-trade-input');
+            if (!item) return;
+            try {
+                const resp = await fetch('/api/test_trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item: item })
+                });
+                const data = await resp.json();
+                if (data.status === 'ok') {
+                    set('trade-test-result', `Normalized: <span style="color:#fff">${data.normalized}</span>`);
+                } else {
+                    set('trade-test-result', `<span style="color:var(--danger)">Error: ${data.message}</span>`);
+                }
+            } catch (e) {
+                set('trade-test-result', `<span style="color:var(--danger)">Connection Error</span>`);
+            }
+        }
+
+        async function updateModel(val) {
+            await fetch('/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_model: val })
+            });
+        }
+
+        async function toggleAmbient(val) {
+            await fetch('/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enable_ambient: val })
+            });
+        }
+
+        function switchTab(t) {
+            currentTab = t;
+            document.querySelectorAll('.log-tab').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('log-display').innerHTML = '';
+            lastServerLogSize = 0;
+            lastLLMDebugLogSize = 0;
+            lastEventLogSize = 0;
+        }
+
+        function clearLogs() {
+            document.getElementById('log-display').innerHTML = '';
+        }
+
+        async function testRegenerateProfile() {
+            if (!activeNpcData.name) {
+                set('identity-test-result', `<span style="color:var(--danger)">No active target</span>`);
+                return;
+            }
+            try {
+                const resp = await fetch('/regenerate_profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sid: activeNpcData.name })
+                });
+                const data = await resp.json();
+                if (data.status === 'success' || data.status === 'ok') {
+                    set('identity-test-result', `Regen OK`);
+                } else {
+                    set('identity-test-result', `<span style="color:var(--danger)">Error: ${data.message || data.error}</span>`);
+                }
+            } catch (e) {
+                set('identity-test-result', `<span style="color:var(--danger)">Connection Error</span>`);
+            }
+        }
+
+        async function testRenameCharacter() {
+            const newName = val('test-rename-input');
+            if (!activeNpcData.name || !newName) {
+                set('identity-test-result', `<span style="color:var(--danger)">Need target/newName</span>`);
+                return;
+            }
+            try {
+                const resp = await fetch('/rename', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ old_name: activeNpcData.name, new_name: newName, context: '' })
+                });
+                const data = await resp.json();
+                if (data.status === 'success' || data.status === 'ok') {
+                    set('identity-test-result', `Renamed to: <span style="color:#2ecc71">${data.new_name}</span>`);
+                } else {
+                    set('identity-test-result', `<span style="color:var(--danger)">Error: ${data.message || data.error}</span>`);
+                }
+            } catch (e) {
+                set('identity-test-result', `<span style="color:var(--danger)">Connection Error</span>`);
+            }
+        }
+
+        async function testListCharacters() {
+            try {
+                const resp = await fetch('/characters');
+                const data = await resp.json();
+                if (data.characters) {
+                    set('identity-test-result', `Found <span style="color:#2ecc71">${data.characters.length}</span> profiles.`);
+                } else {
+                    set('identity-test-result', `<span style="color:var(--danger)">Error fetching list</span>`);
+                }
+            } catch (e) {
+                set('identity-test-result', `<span style="color:var(--danger)">Connection Error</span>`);
+            }
+        }
+
+        poll();
+        pollLogs();
+    </script>
+</body>
+
+</html>

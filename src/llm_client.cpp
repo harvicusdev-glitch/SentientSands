@@ -1,12 +1,8 @@
 #include "llm_client.h"
-#include <atomic>
-#include <condition_variable>
 #include <iostream>
 #include <map>
-#include <mutex>
 #include <queue>
 #include <sstream>
-#include <thread>
 #include <windows.h>
 #include <wininet.h>
 
@@ -26,17 +22,19 @@ struct LLMRequest {
 
 static std::queue<LLMRequest> gPendingRequests;
 static std::queue<LLMResponse> gFinishedResponses;
-static std::mutex gPendingMutex;
-static std::mutex gFinishedMutex;
-static std::condition_variable gPendingCV;
-static std::thread gWorkerThread;
-static std::atomic<bool> gQuitWorker(false);
+static CRITICAL_SECTION gPendingMutex;
+static CRITICAL_SECTION gFinishedMutex;
+static CONDITION_VARIABLE gPendingCV;
+static HANDLE gWorkerThread = NULL;
+static volatile LONG gQuitWorker = 0;
+static volatile LONG gActiveRequests = 0;
 static bool gWorkerStarted = false;
 
 // Helper to escape JSON strings
 std::string escapeJson(const std::string &input) {
   std::string output;
-  for (char c : input) {
+  for (size_t i = 0; i < input.length(); ++i) {
+    char c = input[i];
     if (c == '"')
       output += "\\\"";
     else if (c == '\\')
@@ -136,35 +134,40 @@ static LLMResponse talkToLLMSync(const std::string &npcName,
   return response;
 }
 
-static void llmWorkerMain() {
-  while (!gQuitWorker) {
+static DWORD WINAPI llmWorkerMain(LPVOID lpParam) {
+  while (true) {
     LLMRequest req;
-    {
-      std::unique_lock<std::mutex> lock(gPendingMutex);
-      gPendingCV.wait_for(lock, std::chrono::milliseconds(100), [] {
-        return !gPendingRequests.empty() || gQuitWorker;
-      });
-      if (gQuitWorker && gPendingRequests.empty())
-        break;
-      if (gPendingRequests.empty())
-        continue;
-      req = gPendingRequests.front();
-      gPendingRequests.pop();
+    
+    EnterCriticalSection(&gPendingMutex);
+    while (gPendingRequests.empty() && InterlockedCompareExchange(&gQuitWorker, 0, 0) == 0) {
+      SleepConditionVariableCS(&gPendingCV, &gPendingMutex, INFINITE);
     }
+    if (InterlockedCompareExchange(&gQuitWorker, 1, 1) == 1 && gPendingRequests.empty()) {
+      LeaveCriticalSection(&gPendingMutex);
+      break;
+    }
+    req = gPendingRequests.front();
+    gPendingRequests.pop();
+    LeaveCriticalSection(&gPendingMutex);
 
     LLMResponse res = talkToLLMSync(req.npcName, req.playerName, req.context,
                                     req.playerInput);
-    {
-      std::lock_guard<std::mutex> lock(gFinishedMutex);
-      gFinishedResponses.push(res);
-    }
+    InterlockedDecrement(&gActiveRequests);
+    
+    EnterCriticalSection(&gFinishedMutex);
+    gFinishedResponses.push(res);
+    LeaveCriticalSection(&gFinishedMutex);
   }
+  return 0;
 }
 
 static void startWorkerIfNeeded() {
   if (!gWorkerStarted) {
-    gQuitWorker = false;
-    gWorkerThread = std::thread(llmWorkerMain);
+    InitializeCriticalSection(&gPendingMutex);
+    InitializeCriticalSection(&gFinishedMutex);
+    InitializeConditionVariable(&gPendingCV);
+    InterlockedExchange(&gQuitWorker, 0);
+    gWorkerThread = CreateThread(NULL, 0, llmWorkerMain, NULL, 0, NULL);
     gWorkerStarted = true;
   }
 }
@@ -172,29 +175,53 @@ static void startWorkerIfNeeded() {
 void talksToLLMAsync(const char *npcName, const char *playerName,
                      const char *context, const char *playerInput) {
   startWorkerIfNeeded();
-  std::lock_guard<std::mutex> lock(gPendingMutex);
-  gPendingRequests.push({LLM_CHAT, npcName ? npcName : "Unknown",
-                         playerName ? playerName : "Player",
-                         context ? context : "Dialogue",
-                         playerInput ? playerInput : ""});
-  gPendingCV.notify_one();
+  
+  EnterCriticalSection(&gPendingMutex);
+  InterlockedIncrement(&gActiveRequests);
+  LLMRequest req;
+  req.type = LLM_CHAT;
+  req.npcName = npcName ? npcName : "Unknown";
+  req.playerName = playerName ? playerName : "Player";
+  req.context = context ? context : "Dialogue";
+  req.playerInput = playerInput ? playerInput : "";
+  gPendingRequests.push(req);
+  LeaveCriticalSection(&gPendingMutex);
+  
+  WakeConditionVariable(&gPendingCV);
 }
 
+bool isLLMActive() {
+  return InterlockedCompareExchange(&gActiveRequests, 0, 0) > 0;
+}
+
+void llmStartActive() { InterlockedIncrement(&gActiveRequests); }
+void llmFinishActive() { InterlockedDecrement(&gActiveRequests); }
+
 bool llmGetNextResponse(LLMResponse &outResponse) {
-  std::lock_guard<std::mutex> lock(gFinishedMutex);
-  if (gFinishedResponses.empty())
+  EnterCriticalSection(&gFinishedMutex);
+  if (gFinishedResponses.empty()) {
+    LeaveCriticalSection(&gFinishedMutex);
     return false;
+  }
   outResponse = gFinishedResponses.front();
   gFinishedResponses.pop();
+  LeaveCriticalSection(&gFinishedMutex);
   return true;
 }
 
 void llmCleanup() {
   if (gWorkerStarted) {
-    gQuitWorker = true;
-    gPendingCV.notify_all();
-    if (gWorkerThread.joinable())
-      gWorkerThread.join();
+    InterlockedExchange(&gQuitWorker, 1);
+    WakeAllConditionVariable(&gPendingCV);
+    
+    if (gWorkerThread != NULL) {
+      WaitForSingleObject(gWorkerThread, INFINITE);
+      CloseHandle(gWorkerThread);
+      gWorkerThread = NULL;
+    }
+    
+    DeleteCriticalSection(&gPendingMutex);
+    DeleteCriticalSection(&gFinishedMutex);
     gWorkerStarted = false;
   }
 }

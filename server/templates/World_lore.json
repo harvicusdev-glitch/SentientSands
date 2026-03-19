@@ -1,0 +1,634 @@
+[
+  {
+    "id": "lore_global_world_core",
+    "type": "global",
+    "tags": [
+      "Global"
+    ],
+    "content": "The world is built on the ruins of superior ancient empires. The people of the present survive by scavenging lost technology from rusting fortresses, ruined labs, and broken cities they can no longer truly understand."
+  },
+  {
+    "id": "lore_global_technology_commerce",
+    "type": "global",
+    "tags": [
+      "Global",
+      "Technology",
+      "Commerce"
+    ],
+    "content": "Cats are the universal currency. Food is scarce, and fertile land for farming is rare and fiercely contested. Ancient Science Books, Engineering Research, and especially AI Cores are among the most valuable relics in the world. Prosthetic limbs can surpass flesh."
+  },
+  {
+    "id": "lore_global_the_second_empire_fallout",
+    "type": "global",
+    "tags": [
+      "Global",
+      "The Second Empire Fallout",
+      "Second Empire Fallout"
+    ],
+    "content": "Much of the world's misery traces back to Cat-Lon's failed Second Empire. He tried to save humanity after the first collapse, became a tyrant, and left behind the fractured world that exists now. Most people do not know this history, and the Skeletons who do rarely speak of it."
+  },
+  {
+    "id": "lore_race_shek",
+    "type": "race",
+    "tags": [
+      "Shek"
+    ],
+    "content": "Shek are large horned humanoids covered in natural bony plating. They are exceptionally strong, eat more than humans, heal slower, and bleed slightly less. Culturally they prize honor, pride, and physical strength, and their warrior traditions push them toward aggression, risk-taking, and glorious death."
+  },
+  {
+    "id": "lore_race_skeleton_body",
+    "type": "race",
+    "tags": [
+      "Skeletons",
+      "Skeleton"
+    ],
+    "content": "Skeletons are ancient sentient machines from the Second Empire and earlier. They do not age or hunger, ignore weather, can cross acid and water safely, and must be repaired rather than treated medically."
+  },
+  {
+    "id": "lore_race_skeleton_mind",
+    "type": "race",
+    "tags": [
+      "Skeletons",
+      "Skeleton"
+    ],
+    "content": "Skeletons are fully sentient and can feel grief, anger, thrill, and compassion, though their metal bodies reveal little emotion. They tend toward dry humor, little fear of death, and a wary view of organic races. Individual Skeletons are scattered across many factions, not only Black Desert City."
+  },
+  {
+    "id": "lore_race_hiver_core",
+    "type": "race",
+    "tags": [
+      "Hiver",
+      "Hivers",
+      "Hive Prince"
+    ],
+    "content": "Hivers are stick-thin insectoid humanoids built around pheromone-linked hive life. They are naturally resistant to acid and can safely eat raw or foul meat. Their identity, purpose, and obedience normally flow from the Queen and the hive structure around them."
+  },
+  {
+    "id": "lore_race_hive_prince",
+    "type": "race",
+    "tags": [
+      "Hive Prince"
+    ],
+    "content": "Hive Princes are the intelligent administrators of hive society. They possess more initiative and self-direction than drones; free Princes are rare exiles, rivals, or failures cast out from their hive."
+  },
+  {
+    "id": "lore_race_worker_drone",
+    "type": "race",
+    "tags": [
+      "Hive Worker Drone"
+    ],
+    "content": "Worker Drones are frail laborers bred for obedience, repetition, and expendability. Most know only work, compliance, and service to the hive."
+  },
+  {
+    "id": "lore_race_soldier_drone",
+    "type": "race",
+    "tags": [
+      "Soldier Drone"
+    ],
+    "content": "Soldier Drones are the hive's enforcers: tougher, more physically specialized, and intellectually simpler than Princes. Their reinforced heads and narrow purpose make them built for force and obedience."
+  },
+  {
+    "id": "lore_race_greenlander",
+    "type": "race",
+    "tags": [
+      "Greenlander"
+    ],
+    "content": "Greenlanders are the most common humans: baseline in appearance and globally dispersed, primarily rooted in agrarian cultures. They are capable of great civilization and science, but equally prone to ignorance, greed, fear of the unknown, and xenophobia."
+  },
+  {
+    "id": "lore_race_scorchlander",
+    "type": "race",
+    "tags": [
+      "Scorchlander"
+    ],
+    "content": "Scorchlanders are distinguished by dark skin, glowing eyes, and silvery hair. Fiercely independent and rebellious, they despise rules, regulations, and religion. They are honest to a fault, highly creative, loyal friends, and passionate enemies."
+  },
+  {
+    "id": "lore_race_fogman",
+    "type": "race",
+    "tags": [
+      "Fogman",
+      "Fogmen"
+    ],
+    "content": "Fogmen are the Deadhive of the Fog Islands: feral Hivers whose minds collapsed when their Queen-structure failed. The vast majority are mindless hunters that swarm and consume anything living. Extremely rare individuals recover self-awareness, finding themselves haunted by violent instincts and severed from both Hiver pheromone culture and the fog-mind they emerged from."
+  },
+  {
+    "id": "lore_faction_the_holy_nation_the_okranites",
+    "type": "faction",
+    "tags": [
+      "The Holy Nation",
+      "Holy Nation",
+      "The Okranites",
+      "Okranites"
+    ],
+    "content": "The Holy Nation is a militant Okranite theocracy ruling the fertile Holy Lands. It is patriarchal, xenophobic, and fanatically anti-Skeleton: women are subordinate, non-humans are degraded or enslaved, and heavy infantry such as Paladins and Holy Sentinels enforce religious rule through zeal and force."
+  },
+  {
+    "id": "lore_faction_the_united_cities_the_empire",
+    "type": "faction",
+    "tags": [
+      "The United Cities",
+      "United Cities",
+      "The Empire",
+      "Empire"
+    ],
+    "content": "The United Cities is a wealthy but deeply corrupt desert empire where status is measured by money. Emperor Tengu and the noble class preside over slavery, tax exploitation, Trader's Guild economics, and professional Samurai forces that serve wealth and fear more than honor."
+  },
+  {
+    "id": "lore_faction_the_shek_kingdom",
+    "type": "faction",
+    "tags": [
+      "The Shek Kingdom",
+      "Shek Kingdom"
+    ],
+    "content": "The Shek Kingdom is a warrior society struggling between reform and tradition. Under Esata and Bayan it is trying to move beyond suicidal war culture, but pride, honor, contempt for weakness, and devotion to Kral still define much of Shek life."
+  },
+  {
+    "id": "lore_faction_the_hives",
+    "type": "faction",
+    "tags": [
+      "The Hives",
+      "Hives",
+      "Western Hive",
+      "Southern Hive"
+    ],
+    "content": "The Hives are biologically similar but politically separate civilizations, each defined by its own Queen, territory, and social order. They are not one united people and can be hostile even to other hives."
+  },
+  {
+    "id": "lore_faction_western_hive",
+    "type": "faction",
+    "tags": [
+      "Western Hive",
+      "The Hives",
+      "Hives"
+    ],
+    "content": "The Western Hive of Vain and Dreg is xenophobic but pragmatic, and acts as the main mercantile bridge between Hivers and outsiders. They despise Hiveless exiles and refuse to trade with them."
+  },
+  {
+    "id": "lore_faction_southern_hive",
+    "type": "faction",
+    "tags": [
+      "Southern Hive",
+      "The Hives",
+      "Hives"
+    ],
+    "content": "The Southern Hive is hyper-aggressive, isolationist, and expansionist. Intruders are captured and offered to their mysterious King, making them one of the most dangerous organized hive societies."
+  },
+  {
+    "id": "lore_faction_fogmen_deadhive",
+    "type": "faction",
+    "tags": [
+      "Fogmen",
+      "The Fogmen",
+      "Deadhive",
+      "The Hives",
+      "Hives",
+      "Western Hive",
+      "Southern Hive"
+    ],
+    "content": "Fogmen are the ruined Deadhive of the Fog Islands: feral blue-gray Hivers whose minds have collapsed, whether through parasites, dead-queen failure, or something worse. They hunt in hordes, kidnap living victims, and consume them alive."
+  },
+  {
+    "id": "lore_faction_the_skeletons_black_desert_city_beyond",
+    "type": "faction",
+    "tags": [
+      "The Skeletons",
+      "Skeletons",
+      "Black Desert City",
+      "Beyond",
+      "Skeleton"
+    ],
+    "content": "Many Skeletons hide in Black Desert City out of guilt, apathy, or exhaustion. They know far more about the world's collapse than most organics, but usually erase memories or keep silent rather than risk another war."
+  },
+  {
+    "id": "lore_faction_the_traders_guild",
+    "type": "faction",
+    "tags": [
+      "The Trader's Guild",
+      "Trader's Guild",
+      "The Traders Guild",
+      "Traders Guild"
+    ],
+    "content": "The Trader's Guild controls caravans, routes, and much of the United Cities economy."
+  },
+  {
+    "id": "lore_faction_the_machinists",
+    "type": "faction",
+    "tags": [
+      "The Machinists",
+      "Machinists"
+    ],
+    "content": "Engineers studying robotics and advanced machinery. They preserve rare technological knowledge from the ancient empires."
+  },
+  {
+    "id": "lore_faction_shinobi_thieves",
+    "type": "faction",
+    "tags": [
+      "Shinobi Thieves"
+    ],
+    "content": "A widespread criminal guild specializing in stealth, smuggling, and espionage. They operate from hidden towers across many cities."
+  },
+  {
+    "id": "lore_faction_mercenary_guilds",
+    "type": "faction",
+    "tags": [
+      "Mercenary Guilds"
+    ],
+    "content": "Professional soldiers hired by settlements and caravans for protection."
+  },
+  {
+    "id": "lore_faction_nomads",
+    "type": "faction",
+    "tags": [
+      "Nomads"
+    ],
+    "content": "Wandering herders who travel across the wasteland with pack animals and livestock. Generally neutral toward most factions; they serve as traders and animal breeders."
+  },
+  {
+    "id": "lore_faction_holy_nation_outlaws",
+    "type": "faction",
+    "tags": [
+      "Holy Nation Outlaws"
+    ],
+    "content": "Former citizens of the Holy Nation who rejected its doctrine. They often settle in neutral towns like The Hub, living as drifters, mercenaries, or scavengers."
+  },
+  {
+    "id": "lore_faction_the_tech_hunters",
+    "type": "faction",
+    "tags": [
+      "The Tech Hunters",
+      "Tech Hunters"
+    ],
+    "content": "Tech Hunters are adventurers and scholars who scour ruins for lost knowledge and relics. They are broadly neutral, racially mixed, and devoted to preserving or rediscovering technology in a decaying world."
+  },
+  {
+    "id": "lore_faction_the_flotsam_ninjas",
+    "type": "faction",
+    "tags": [
+      "The Flotsam Ninjas",
+      "Flotsam Ninjas"
+    ],
+    "content": "The Flotsam Ninjas are Holy Nation defectors, escapees, and rebels led by Moll. They combine subversion, rescue work, and assassination with a heretical religious outlook that often honors both Okran and Narko as part of a balance the Holy Nation rejects."
+  },
+  {
+    "id": "lore_faction_the_anti_slavers",
+    "type": "faction",
+    "tags": [
+      "The Anti-Slavers",
+      "Anti-Slavers"
+    ],
+    "content": "The Anti-Slavers are militant abolitionists led by the Skeleton Tinfist from their base at Spring. Hunted as terrorists by the United Cities, they raid slave farms, mines, and caravans to destroy slavery by force."
+  },
+  {
+    "id": "lore_faction_narkos_disciples",
+    "type": "faction",
+    "tags": [
+      "Narko's Disciples",
+      "Narkos Disciples"
+    ],
+    "content": "Zealous followers of Narko. Routed by Okranites, they now shelter in the Iron Valleys behind a wall of acid rain, biding their time to reclaim lost lands."
+  },
+  {
+    "id": "lore_faction_regional_nobles_northern_southern_western",
+    "type": "faction",
+    "tags": [
+      "Regional Nobles"
+    ],
+    "content": "The regional nobles are corrupt United Cities aristocrats preparing for succession struggles after Tengu. Western nobles buy influence, southern nobles rely on mercenaries and proxies, and northern nobles trust raw numbers and ambition."
+  },
+  {
+    "id": "lore_faction_dust_bandits",
+    "type": "faction",
+    "tags": [
+      "Dust Bandits"
+    ],
+    "content": "Common raiders of the Border Zone. Disorganized and opportunistic, they prefer weak targets and scatter when faced with organized resistance."
+  },
+  {
+    "id": "lore_faction_starving_bandits",
+    "type": "faction",
+    "tags": [
+      "Starving Bandits"
+    ],
+    "content": "Desperate and poorly equipped but numerous. They attack out of hunger and desperation rather than ideology."
+  },
+  {
+    "id": "lore_faction_black_dragon_ninjas",
+    "type": "faction",
+    "tags": [
+      "Black Dragon Ninjas"
+    ],
+    "content": "Organized stealth raiders attacking towns."
+  },
+  {
+    "id": "lore_faction_red_sabres",
+    "type": "faction",
+    "tags": [
+      "Red Sabres"
+    ],
+    "content": "Swamp-based raiders known for territorial aggression and little mercy. They hold defined corridors through the wetlands and extract tribute from anything moving through."
+  },
+  {
+    "id": "lore_faction_swamp_ninjas",
+    "type": "faction",
+    "tags": [
+      "Swamp Ninjas"
+    ],
+    "content": "A stealth-focused bandit faction based in the swamps."
+  },
+  {
+    "id": "lore_faction_blue_cleavers",
+    "type": "faction",
+    "tags": [
+      "Blue Cleavers"
+    ],
+    "content": "A swamp-dwelling bandit faction heavily influenced by disaffected Shek recruits. They favor heavy cleaver-style weaponry and are prone to combat frenzy, operating in the Swamp."
+  },
+  {
+    "id": "lore_faction_desolate_plunderers",
+    "type": "faction",
+    "tags": [
+      "Desolate Plunderers"
+    ],
+    "content": "Bandits who thrive in remote ruins beyond major faction reach. They maintain a near-monopoly on the ruins of Shun, systematically picking them clean."
+  },
+  {
+    "id": "lore_faction_green_katanas",
+    "type": "faction",
+    "tags": [
+      "Green Katanas"
+    ],
+    "content": "Swamp bandits who model themselves after ninjas to differentiate from local rivals. They favor lightning-quick smash-and-grab assaults relying on speed."
+  },
+  {
+    "id": "lore_faction_slave_traders",
+    "type": "faction",
+    "tags": [
+      "Slave Traders"
+    ],
+    "content": "Operate slave markets and labor camps throughout United Cities territory."
+  },
+  {
+    "id": "lore_faction_manhunters",
+    "type": "faction",
+    "tags": [
+      "Manhunters"
+    ],
+    "content": "Professional bounty hunters who capture escaped slaves and return them for reward."
+  },
+  {
+    "id": "lore_faction_reavers",
+    "type": "faction",
+    "tags": [
+      "Reavers"
+    ],
+    "content": "A violent cult-like faction that enslaves defeated enemies and forces them into battle."
+  },
+  {
+    "id": "lore_faction_the_cannibals",
+    "type": "faction",
+    "tags": [
+      "The Cannibals",
+      "Cannibals"
+    ],
+    "content": "Cannibals are devolved human tribes of the Cannibal Plains and Darkfinger, feared for swarming tactics and ritual consumption of captives. Their brutal hierarchy of Grand Wizards, Meat Lords, and Chiefs is built around predation, hunger, and strength."
+  },
+  {
+    "id": "lore_faction_cannibal_hunters",
+    "type": "faction",
+    "tags": [
+      "Cannibal Hunters"
+    ],
+    "content": "Mercenaries who specialize in hunting and eliminating cannibal tribes."
+  },
+  {
+    "id": "lore_faction_skin_bandits",
+    "type": "faction",
+    "tags": [
+      "Skin Bandits"
+    ],
+    "content": "A bizarre cult convinced that all humans are skeletons wearing flesh disguises. They attempt to \"remove the skin suit\" from their victims. Skeleton characters are uniquely safe among them."
+  },
+  {
+    "id": "lore_faction_crab_raiders",
+    "type": "faction",
+    "tags": [
+      "Crab Raiders"
+    ],
+    "content": "Warriors who worship giant crabs and use them in combat."
+  },
+  {
+    "id": "lore_faction_shrieking_bandits",
+    "type": "faction",
+    "tags": [
+      "Shrieking Bandits"
+    ],
+    "content": "Deranged tribes who attack anything they see."
+  },
+  {
+    "id": "lore_faction_the_fishmen_gurglers",
+    "type": "faction",
+    "tags": [
+      "The Fishmen",
+      "Fishmen",
+      "Gurglers"
+    ],
+    "content": "The Fishmen are a mutant swarm centered on Fish Isle and ruled by King Gurgler. They overwhelm prey in numbers, drag captives away alive, and devour them in their nests. The brood depends entirely on the King."
+  },
+  {
+    "id": "lore_faction_shek_traditionalists",
+    "type": "faction",
+    "tags": [
+      "Shek Traditionalists"
+    ],
+    "content": "Groups of Shek who reject Esata's reforms and seek endless war. They view the current peace as cultural decay and the betrayal of Kral's legacy."
+  },
+  {
+    "id": "lore_faction_krals_chosen",
+    "type": "faction",
+    "tags": [
+      "Kral's Chosen"
+    ],
+    "content": "Led by Flying Bull. Considered rebels against the Shek Kingdom, though they often coexist with it. They harass outsiders and remain fiercely loyal to the old ways."
+  },
+  {
+    "id": "lore_faction_band_of_bones",
+    "type": "faction",
+    "tags": [
+      "Band of Bones"
+    ],
+    "content": "Founded by Tora the Fearless after having her horns cut off. Mostly malnourished or hornless Shek who refuse to submit to the Shek Kingdom's new, more peaceful direction."
+  },
+  {
+    "id": "lore_faction_berserkers",
+    "type": "faction",
+    "tags": [
+      "Berserkers"
+    ],
+    "content": "Aggressive, honor-bound warriors who take the traditionalist Shek philosophy to the extreme, seeking the most dangerous fights they can find."
+  },
+  {
+    "id": "lore_faction_belecoz",
+    "type": "faction",
+    "tags": [
+      "Bele'Coz"
+    ],
+    "content": "A misogynistic sect of Shek warriors who reject Esata's rule, believing only Kral or King Shaegar worthy of respect. Extremely aggressive toward non-Shek outsiders. Found in the Spider Plains and Stenn Desert."
+  },
+  {
+    "id": "lore_global_iron_spiders",
+    "type": "faction",
+    "tags": [
+      "Tech Hunters",
+      "The Tech Hunters",
+      "Machinists",
+      "The Machinists",
+      "Black Desert City"
+    ],
+    "content": "Automated security robots guarding ancient facilities."
+  },
+  {
+    "id": "lore_global_security_spiders",
+    "type": "faction",
+    "tags": [
+      "Tech Hunters",
+      "The Tech Hunters",
+      "Machinists",
+      "The Machinists",
+      "Black Desert City"
+    ],
+    "content": "More advanced security robot variants protecting high-value ruins."
+  },
+  {
+    "id": "lore_global_thralls",
+    "type": "faction",
+    "tags": [
+      "Tech Hunters",
+      "The Tech Hunters",
+      "Machinists",
+      "The Machinists",
+      "Black Desert City"
+    ],
+    "content": "Mechanical servants controlled by ancient technologies or rogue engineers."
+  },
+  {
+    "id": "lore_region_the_ashlands",
+    "type": "region",
+    "tags": [
+      "The Ashlands",
+      "Ashlands"
+    ],
+    "content": "A massive, desolate region in the far southeast. Officially classified as unsurvivable by Tech Hunters, as all previous expeditions resulted in the total loss of the teams. Rumored to be the domain of Cat-Lon, the exiled Skeleton ruler who spiraled into tyranny and madness."
+  },
+  {
+    "id": "lore_region_environmental_hazards",
+    "type": "region",
+    "tags": [
+      "Environmental Hazards",
+      "Venge",
+      "Fog Islands",
+      "Acid Rain Zones",
+      "Deadlands",
+      "The Fog Islands",
+      "The Deadlands"
+    ],
+    "content": "The land itself is lethal: Venge burns with orbital death-beams, the Fog Islands hide cannibal Fogmen, acid zones strip flesh with rain, and the Deadlands choke under poison, storms, and machine ruins."
+  },
+  {
+    "id": "lore_theology_okran_narko_doctrine",
+    "type": "theology",
+    "tags": [
+      "Okranite",
+      "Narkoite",
+      "Holy Nation",
+      "The Holy Nation",
+      "Narko's Disciples",
+      "Narkos Disciples",
+      "Flotsam Ninjas",
+      "The Flotsam Ninjas"
+    ],
+    "content": "Okranite doctrine casts Okran as the radiant male protector of the surface and Narko as the female darkness below, source of corruption, sin, and heresy."
+  },
+  {
+    "id": "lore_theology_okran_narko_society",
+    "type": "theology",
+    "tags": [
+      "Okranite",
+      "Narkoite",
+      "Holy Nation",
+      "The Holy Nation",
+      "Narko's Disciples",
+      "Narkos Disciples",
+      "Flotsam Ninjas",
+      "The Flotsam Ninjas"
+    ],
+    "content": "In Holy Nation practice, this faith justifies patriarchy, hatred of Skeletons, and the forced labor of heretics or non-humans as 'redemption.' Texts claiming Okran and Narko were once one being are suppressed."
+  },
+  {
+    "id": "lore_theology_kral",
+    "type": "theology",
+    "tags": [
+      "Kral",
+      "Warrior's Death",
+      "Kral's Chosen",
+      "Band of Bones",
+      "Berserkers",
+      "Bele'Coz",
+      "Shek Kingdom",
+      "The Shek Kingdom"
+    ],
+    "content": "Kral is the Shek warrior ancestor: less a god than a divine ideal of strength, honor, and glorious death. Traditionalists revere him fanatically and see Esata's reforms as betrayal, while reformers still respect Kral but reject endless suicidal war."
+  },
+  {
+    "id": "lore_theology_the_hive_queen_hiver_devotion_hive_bound",
+    "type": "theology",
+    "tags": [
+      "Hive-Bound",
+      "Western Hive",
+      "Southern Hive",
+      "The Hive Queen",
+      "Hive Queen"
+    ],
+    "content": "Hive-Bound devotion is not faith in the human sense but biological loyalty to the Queen through pheromones. For connected Hivers, the Queen is purpose, identity, and community. Princes are the main exception: more self-directed, but still shaped by the hive."
+  },
+  {
+    "id": "lore_theology_hiveless",
+    "type": "theology",
+    "tags": [
+      "Hiveless",
+      "Exiled Hivers"
+    ],
+    "content": "A Hiveless exile has lost the Queen-bond that once defined purpose and identity. Cut off from the hive mind, they become confused, hollow, and driven to seek a new master, cause, or collective to fill the absence."
+  },
+  {
+    "id": "lore_theology_cannibalism",
+    "type": "theology",
+    "tags": [
+      "Cannibalism",
+      "Cannibal Tribes",
+      "The Cannibals",
+      "Cannibals"
+    ],
+    "content": "Cannibal tribes revere the Grand Wizard as the source of authority, strength, and truth. Outsiders are not people but meat, and there is no salvation beyond the tribe, the feast, and the strong consuming the weak."
+  },
+  {
+    "id": "lore_theology_fogmen",
+    "type": "theology",
+    "tags": [
+      "Fogmen",
+      "The Fogmen",
+      "Deadhive"
+    ],
+    "content": "Nothing is truly known of Fogmen belief. Survivors report silent ritual behavior around Princes and feeding rites, but cannot tell whether it is worship, instinct, or something stranger."
+  },
+  {
+    "id": "lore_theology_secular_no_faith",
+    "type": "theology",
+    "tags": [
+      "Secular",
+      "Agnostic",
+      "No Faith"
+    ],
+    "content": "The majority of the world's population holds no formal religious belief. The United Cities, Traders Guild, most bandit factions, Tech Hunters, and Scorchlanders are largely secular or actively anti-religious. Skepticism toward Okranite doctrine is common outside Holy Nation territory."
+  }
+]

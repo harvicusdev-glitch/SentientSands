@@ -10,6 +10,9 @@ class GameWorld;
 namespace Ogre {
 class Vector3;
 }
+namespace MyGUI {
+class ImageBox;
+}
 #include <kenshi/Enums.h>
 #include <kenshi/util/hand.h>
 #include <ogre/OgreVector3.h>
@@ -45,6 +48,8 @@ extern float g_yellRadius;
 extern float g_visionRange;
 extern int g_ambientIntervalSeconds;
 extern bool g_enableAmbient;
+extern bool g_enableRenamer;
+extern bool g_enableAnimalRenamer;
 extern bool g_triggerAmbient;
 extern float g_minFactionRelation;
 extern float g_maxFactionRelation;
@@ -60,6 +65,7 @@ extern hand g_lastSelectionHand;
 extern hand g_lastChattingPlayerHand;
 extern std::string g_playerInventoryJson;
 extern hand g_playerHand;
+extern MyGUI::ImageBox *g_loadingIcon;
 extern CRITICAL_SECTION g_stateMutex;
 extern int g_chatHotkey;
 extern std::string g_chatHotkeyStr;
@@ -120,6 +126,7 @@ extern CRITICAL_SECTION g_uiMutex;
 // Background Name Assignment system
 struct NameCheckItem {
   unsigned int serial;
+  std::string persistent_id;
   std::string name;
   std::string gender; // "Male" | "Female"
   std::string race;

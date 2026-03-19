@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include <algorithm>
+#include <cctype>
 #include <windows.h>
 
 using namespace SentientSands::UI;
@@ -77,40 +78,45 @@ std::string UnescapeJSON(const std::string &s) {
       } else if (s[i + 1] == '\\') {
         res += '\\';
         i++;
-      } else if (s[i + 1] == 'u' && i + 5 < s.length()) {
-        // Handle \uXXXX hex sequence
-        unsigned int cp = 0;
-        bool valid = true;
-        for (int j = 0; j < 4; ++j) {
-          char c = s[i + 2 + j];
-          cp <<= 4;
-          if (c >= '0' && c <= '9')
-            cp += (c - '0');
-          else if (c >= 'a' && c <= 'f')
-            cp += (10 + c - 'a');
-          else if (c >= 'A' && c <= 'F')
-            cp += (10 + c - 'A');
-          else {
-            valid = false;
-            break;
+      } else if (s[i + 1] == 'u') {
+        if (i + 5 < s.length()) {
+          // Handle \uXXXX hex sequence
+          unsigned int cp = 0;
+          bool valid = true;
+          for (int j = 0; j < 4; ++j) {
+            char c = s[i + 2 + j];
+            cp <<= 4;
+            if (c >= '0' && c <= '9')
+              cp += (c - '0');
+            else if (c >= 'a' && c <= 'f')
+              cp += (10 + c - 'a');
+            else if (c >= 'A' && c <= 'F')
+              cp += (10 + c - 'A');
+            else {
+              valid = false;
+              break;
+            }
           }
-        }
 
-        if (valid) {
-          // Convert Unicode codepoint to UTF-8
-          if (cp <= 0x7F) {
-            res += (char)cp;
-          } else if (cp <= 0x7FF) {
-            res += (char)(0xC0 | ((cp >> 6) & 0x1F));
-            res += (char)(0x80 | (cp & 0x3F));
+          if (valid) {
+            // Convert Unicode codepoint to UTF-8
+            if (cp <= 0x7F) {
+              res += (char)cp;
+            } else if (cp <= 0x7FF) {
+              res += (char)(0xC0 | ((cp >> 6) & 0x1F));
+              res += (char)(0x80 | (cp & 0x3F));
+            } else {
+              res += (char)(0xE0 | ((cp >> 12) & 0x0F));
+              res += (char)(0x80 | ((cp >> 6) & 0x3F));
+              res += (char)(0x80 | (cp & 0x3F));
+            }
+            i += 5; // skip uXXXX
           } else {
-            res += (char)(0xE0 | ((cp >> 12) & 0x0F));
-            res += (char)(0x80 | ((cp >> 6) & 0x3F));
-            res += (char)(0x80 | (cp & 0x3F));
+            res += s[i]; // Not a valid hex sequence, just append the backslash
           }
-          i += 5; // skip uXXXX
         } else {
-          res += s[i]; // Not a valid hex sequence, just append the backslash
+          // Truncated \u sequence
+          res += s[i];
         }
       } else {
         res += s[i];
@@ -181,8 +187,22 @@ std::string GetJsonValue(const std::string &json, const std::string &key) {
   return "";
 }
 
-void SetHotkeyFromString(const std::string &keyStr) {
+static std::string Trim(const std::string &s) {
+  auto start = s.begin();
+  while (start != s.end() && std::isspace(*start)) {
+    start++;
+  }
+  auto end = s.end();
+  do {
+    end--;
+  } while (std::distance(start, end) > 0 && std::isspace(*end));
+  return std::string(start, end + 1);
+}
+
+void SetHotkeyFromString(const std::string &keyStrRaw) {
+  std::string keyStr = Trim(keyStrRaw);
   g_chatHotkeyStr = keyStr;
+
   if (keyStr == "\\")
     g_chatHotkey = VK_OEM_5;
   else if (keyStr == "[")
@@ -198,6 +218,7 @@ void SetHotkeyFromString(const std::string &keyStr) {
   else if (keyStr == "K" || keyStr == "k")
     g_chatHotkey = 'K';
   else {
+    Log("WARNING: Unrecognized hotkey '" + keyStr + "', defaulting to '\\'");
     g_chatHotkey = VK_OEM_5;
     g_chatHotkeyStr = "\\";
   }
@@ -218,9 +239,9 @@ void LoadPluginConfig() {
 
   g_radiantRange = (float)GetPrivateProfileIntA("Settings", "RadiantRange", 100,
                                                 iniPath.c_str());
-  g_proximityRadius = (float)GetPrivateProfileIntA("Settings", "TalkRadius", 40,
+  g_proximityRadius = (float)GetPrivateProfileIntA("Settings", "TalkRadius", 100,
                                                    iniPath.c_str());
-  g_yellRadius = (float)GetPrivateProfileIntA("Settings", "YellRadius", 100,
+  g_yellRadius = (float)GetPrivateProfileIntA("Settings", "YellRadius", 200,
                                               iniPath.c_str());
 
   g_visionRange = 100.0f; // Standard vision range for NPC awareness
@@ -238,17 +259,23 @@ void LoadPluginConfig() {
                                           iniPath.c_str()) != 0;
 
   g_dialogueSpeedSeconds =
-      GetPrivateProfileIntA("Settings", "DialogueSpeed", 5, iniPath.c_str());
+      GetPrivateProfileIntA("Settings", "DialogueSpeed", 8, iniPath.c_str());
+
+  char bubbleLifeBuf[32];
+  GetPrivateProfileStringA("Settings", "SpeechBubbleLife", "15.0", bubbleLifeBuf,
+                           32, iniPath.c_str());
+  g_speechBubbleLife = (float)atof(bubbleLifeBuf);
 
   Log("CONFIG: Loaded ProximityRadius=" + ToString(g_proximityRadius) +
       ", RadiantRange=" + ToString(g_radiantRange) +
+      ", YellRadius=" + ToString(g_yellRadius) +
       ", AmbientInterval=" + ToString(g_ambientIntervalSeconds) + "s" +
       ", EnableAmbient=" + (g_enableAmbient ? "true" : "false") +
-      ", EnableWelcome=" + (g_enableWelcome ? "true" : "false"));
+      ", BubbleLife=" + ToString(g_speechBubbleLife) + "s" +
+      ", Hotkey=" + g_chatHotkeyStr);
 
-  // Ensure the INI file exists with all default values if launched for the
-  // first time
-  SavePluginConfig();
+  // Note: We no longer call SavePluginConfig() here to avoid race conditions
+  // during initialization with the Python server, which also populates defaults.
 }
 
 void SavePluginConfig() {
@@ -279,6 +306,9 @@ void SavePluginConfig() {
                              iniPath.c_str());
   WritePrivateProfileStringA("Settings", "DialogueSpeed",
                              ToString(g_dialogueSpeedSeconds).c_str(),
+                             iniPath.c_str());
+  WritePrivateProfileStringA("Settings", "SpeechBubbleLife",
+                             ToString(g_speechBubbleLife).c_str(),
                              iniPath.c_str());
 
   Log("CONFIG: Saved full settings state to INI.");

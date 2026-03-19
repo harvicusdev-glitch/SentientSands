@@ -3,6 +3,7 @@
 #include "Context.h"
 #include "Globals.h"
 #include "Utils.h"
+#include "llm_client.h"
 
 #include "../RE_Kenshi_Source/KenshiLib/Include/kenshi/Character.h"
 #include "../RE_Kenshi_Source/KenshiLib/Include/kenshi/Faction.h"
@@ -56,7 +57,9 @@ DWORD WINAPI ChatResponseThread(LPVOID lpParam) {
   ChatTask *t = (ChatTask *)lpParam;
   Log("CHAT_THREAD: Sending chat request for " + t->npcName);
 
+  SentientSands::llmStartActive();
   std::string response = PostToPythonWithResponse(L"/chat", t->json);
+  SentientSands::llmFinishActive();
 
   if (response.empty()) {
     Log("CHAT_THREAD: Empty response from server.");
@@ -338,15 +341,19 @@ void OnChatSendClick(MyGUI::Widget *sender) {
               o_sid_fact = factionName;
             }
             std::string o_sid =
-                GetStorageIDFor(other, other->getName(), o_sid_fact);
+                GetStorageIDFor(other);
 
             std::string o_gender = other->isFemale() ? "female" : "male";
+            std::string o_runtime_id = GetRuntimeIDFor(other);
+            std::string o_persistent_id = GetPersistentIDFor(other);
 
             if (!nearbyFullJson.empty())
               nearbyFullJson += ",";
             nearbyFullJson += "{\"name\":\"" + EscapeJSON(other->getName()) +
                               "\", \"id\":\"" +
                               ToString((int)other->getHandle().serial) +
+                              "\", \"runtime_id\":\"" + EscapeJSON(o_runtime_id) +
+                              "\", \"persistent_id\":\"" + EscapeJSON(o_persistent_id) +
                               "\", \"storage_id\":\"" + EscapeJSON(o_sid) +
                               "\", \"race\":\"" + EscapeJSON(raceName) +
                               "\", \"faction\":\"" + EscapeJSON(factionName) +

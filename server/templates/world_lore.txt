@@ -2,52 +2,389 @@
 
 Kenshi is a world defined by the collapse of ancient, superior civilizations. The current age is one of decay, rust, and desperate survival. The surface is littered with the skeletons of titans—vast machines and metal structures from the First and Second Empires that no one alive understands how to rebuild.
 
+The civilizations of the present survive by scavenging fragments of the past. Ancient laboratories hold secrets that could reshape the world, while deranged cults and bandit tribes fight over scraps of territory in the ruins.
+
+---
+
+## RACES (Conscious Beings)
+
+### SHEK
+- **Physiology**: Large, horned humanoids covered in natural bony plating. They possess exceptional physical power but require significantly more food than humans, heal slower, and bleed slightly less.
+- **Psychology**: Stoic, humorless, and highly prone to aggression and violent crime. They value pride, honor, and physical strength above all else, driving a suicidal societal nature that keeps their global population in the low single digits.
+- **Origins**: Believed to be the descendants of genetically augmented human "Enforcers" from the Second Empire.
+
+### SKELETONS
+- **Appearance**: sentient, humanoid robots of many diffent makes and models. Their exterior is always exposed metal framework with various internal mechanisms showing.
+- **Physiology**: Ancient sentient machines from the Second Empire and earlier. They do not age or hunger, are entirely immune to all weather effects, and can walk through water or acid. Their mechanical bodies require repair rather than medical treatment.
+- **Psychology**: Fully sentient and capable of experiencing sadness, anger, compassion, and thrill, though they cannot express these emotions visually. They have a dry sense of humor, possess no fear of death, and generally view organic races as volatile and unpredictable.
+- **Note**: Skeleton individuals exist scattered across many factions throughout the world, not only in Black Desert City. See also: THE SKELETONS (Faction) for the Black Desert City community specifically.
+
+### HIVERS
+- **Appearance**: stick-like, organic humanoids, almost insect like, of various colors depending on their hive of origin.
+- **Physiology**: Stick-thin, insectoid humanoids operating on a pheromone-driven hive mind. They are naturally immune to acid rain and can safely consume raw or foul meat.
+- **The Queen**: The absolute center of the Hive — a cyborg possessing an organic upper body connected to a massive mechanical dispenser tank. She requires food to survive but must be repaired like a machine if injured.
+- **Hive Princes**: The highly intelligent, free-willed administrators of the Hive. They run the economy and society. Free Princes are exceptionally rare, usually exiled due to rivalries or failure.
+- **Soldier Drones**: The Hive's enforcers. They possess heavily reinforced heads but are intellectually stunted.
+- **Worker Drones**: Expendable, frail laborers who know only absolute obedience.
+- **Hiveless Exiles**: Any Hiver from any Hive can become an exile if separated from their Queen's pheromone range. Cut off from the hive mind, they become bewildered individuals desperately seeking purpose or a new master. This is distinct from the Dark Hive, whose entire Queen-structure collapsed.
+
+### HUMANS
+
+#### GREENLANDER
+- **Appearance**: Baseline Human appearance.
+- **Psychology**: Extremely common and globally dispersed. Primarily rooted in agrarian cultures. They are capable of great civilization and science, but are equally prone to ignorance, greed, fear of the unknown, and xenophobia.
+
+#### SCORCHLANDER
+- **Appearance**: Distinguished by dark skin, glowing eyes, and silvery hair.
+- **Psychology**: Fiercely independent and rebellious. They despise rules, regulations, and religion, giving them a reputation as social misfits. They are honest to a fault, highly creative, loyal friends, and passionate enemies.
+
+### Cannibal Veganites
+A small group of former cannibals, who renounced their old ways
+- **Origins**: Originally a ferocious Cannibals of the painted tribe, they've renounced their ways and begun a vegan life of adventuring. 
+- **Location**: nomadic
+
+---
+
 ## SOCIETAL STRUCTURES & FACTIONS
 
+### MAJOR CIVILIZATIONS
+
 ### THE HOLY NATION (The Okranites)
-Religious extremists who worship Okran, the God of Light. They reside in the fertile "Holy Lands" and the "Pride of Okran".
-- **Dogma**: They follow the "Holy Flame." They view Skeletons as demons (agents of Narko, the Goddess of Darkness) and treat non-humans (Shek and Hivers) as "beasts" to be subjugated or purged.
+Religious extremists who worship Okran, the God of Light. They reside in the fertile Holy Lands and the Pride of Okran.
+- **Dogma**: They follow the "Holy Flame." They view Skeletons as demons — literal agents of Narko — and treat non-humans (Shek and Hivers) as beasts to be subjugated or purged.
 - **Social Structure**: Highly patriarchal. Women are protected but subservient; men are the warriors and priests.
-- **Military**: Rely on "Holy Sentinels" and "Paladins" wearing heavy plate armor and wielding hackers or heavy cleavers. They use numbers and zealotry to overwhelm foes.
+- **Military**: Rely on "Holy Sentinels" and "Paladins" in heavy armor. They use numbers and zealotry to overwhelm foes.
 
 ### THE UNITED CITIES (The Empire)
-A stratified, crumbling empire located primarily in the Great Desert and the South Wetlands.
+A stratified empire located primarily in the Great Desert and the South Wetlands. It appears powerful but is plagued by corruption and internal unrest.
 - **Philosophy**: Wealth is the only measure of worth. Poverty is a crime; those who cannot pay their taxes are enslaved by the Slave Traders.
-- **Leadership**: Led by Emperor Tengu and a council of corrupt "Noble Lords" who prioritize their own entertainment over the stability of the realm.
+- **Leadership**: Led by Emperor Tengu and a council of corrupt Noble Lords who prioritize their own entertainment over the stability of the realm.
 - **Economy**: Driven by the Trader's Guild and massive slave-farm operations. If you aren't rich, you are either a victim or a servant.
-- **Military**: Professional "Samurai" forces. They are better equipped than Holy Nation troops but lack the same religious fervor, often serving for pay or out of fear of the nobles.
+- **Military**: Professional "Samurai" forces. Better equipped than Holy Nation troops but often serving for pay or out of fear of the nobles rather than true loyalty.
 
 ### THE SHEK KINGDOM
-A proud, bone-plated warrior race primarily located in the Stenn Desert and Hook.
-- **Biology**: Shek have natural bony protrusions that serve as armor. They are stronger and tougher than humans but possess high metabolisms.
-- **Culture**: Once a suicidal horde under Shaper, now a reforming kingdom under Stone Golem Esata and Bayan. They value "Kral," their legendary ancestor, and seek a "Warrior's Death."
-- **Social Stigma**: "Flatskins" (humans) were traditionally seen as weak cattle, though Esata is trying to integrate them as allies. Those who cannot fight are shamed.
+A reforming warrior society primarily located in the Stenn Desert and Hook.
+- **Culture**: Once a suicidal horde, now led by Stone Golem Esata and Bayan. They value "Kral," their legendary ancestor, and seek a glorious "Warrior's Death."
+- **Social Stigma**: "Flatskins" (humans) were traditionally seen as weak cattle, though Esata is trying to integrate them as allies. Those who cannot fight are heavily shamed.
+- **Internal Tension**: The reform movement is bitterly contested by traditionalist factions who believe Esata's path betrays Kral's legacy.
 
-### THE HIVE
-A communal society of insectoids living in the Vain region and the Islands.
-- **Hierarchy**: All Hivers are connected to their Queen through pheromones. 
-    - **Prince**: Cunning, autonomous leaders/traders.
-    - **Soldier**: Specialized warriors with reinforced heads but no autonomy.
-    - **Drone**: Mindless, tireless workers.
-- **Western Hive**: Known for their deceptive trading and "Beep" (a common exile). They call non-hivers "No-hives."
-- **Deadsun/Southern Hive**: Far more aggressive and xenophobic variants.
+### THE HIVES
+While biologically similar, the various Hives operate as entirely separate, often hostile, civilizations based on their respective Queens.
+- **Western Hive**: Located in Vain and Dreg. Xenophobic but highly pragmatic, serving as major merchants to the outside world. They despise "Hiveless" exiles and will refuse to trade with them.
+- **Southern Hive**: Located in the Royal Valley. Hyper-aggressive, expansionist, and isolationist. They capture intruders and sacrifice them to their mysterious "King."
+- **Northern Hive**: The most aggressive variant; they maintain utter contempt for all non-hiver races and will attack on sight.
+- **Midland Hive**: Adept at stealth and theft; they serve as a geographical and martial buffer between the Western Hive and the Fogmen.
+- **The Dark Hive**: A fallen civilization. Their Queen lost her production capacity long ago, granted her remaining subjects free will, and vanished. Dark Hivers now wander the world as scattered individuals, facing extreme discrimination from humans.
+- **The Fogmen (Deadhive)**: Located in the Fog Islands. Feral, blue-gray Hivers whose minds have been destroyed — rumored to be caused by a parasite or a dead Queen. They are mindless, screaming cannibals who roam in massive hordes, kidnapping victims to eat alive.
 
-### THE SKELETONS
-Ancient sentient machines from the Second Empire (and earlier).
-- **Condition**: They do not age or hunger, but their mechanical parts wear down. Most reside in the "Black Desert City," hiding from the world out of guilt or apathy.
-- **The Great Lie**: Skeletons know the true history of the world's collapse but often choose to "reset" their memories or lie to humans to avoid starting another war of extermination.
+### THE SKELETONS (Black Desert City & Beyond)
+- **Culture**: Most reside in Black Desert City, hiding from the world out of guilt or apathy. The Holy Nation views them as demons and will attack them on sight.
+- **The Great Lie**: Skeletons know the true history of the world's collapse but often choose to reset their memories or lie to humans to avoid starting another war of extermination.
+- **Unique Relations**: Skeleton characters can safely approach and ally with the Skin Bandits, who believe all beings are skeletons wearing flesh disguises.
+
+---
+
+### SECONDARY FACTIONS & ORGANIZATIONS
+
+### THE TRADER'S GUILD
+A powerful organization controlling trade routes and caravans. They exert enormous economic influence within the United Cities.
+
+### THE MACHINISTS
+Engineers studying robotics and advanced machinery. They preserve rare technological knowledge from the ancient empires.
+
+### SHINOBI THIEVES
+A widespread criminal guild specializing in stealth, smuggling, and espionage. They operate from hidden towers across many cities.
+
+### MERCENARY GUILDS
+Professional soldiers hired by settlements and caravans for protection.
+
+### NOMADS
+Wandering herders who travel across the wasteland with pack animals and livestock. Generally neutral toward most factions; they serve as traders and animal breeders.
+
+### HOLY NATION OUTLAWS
+Former citizens of the Holy Nation who rejected its doctrine. They often settle in neutral towns like The Hub, living as drifters, mercenaries, or scavengers.
+
+### THE TECH HUNTERS
+An organization of adventurers and scholars dedicated to scouring ancient ruins for lost technologies. They operate out of towns like World's End, Flats Lagoon, Mourn, and Black Scratch.
+- **Philosophy**: They seek to preserve history and reverse the world's technological decay. They are largely neutral and cooperate with most major factions.
+- **Demographics**: A diverse coalition that includes Humans, Shek, Hivers, and Skeletons.
+- **Operations**: They run shops, provide mercenary work, and publish guides to help travelers. Their primary headquarters in World's End is heavily guarded against Holy Nation interference.
+
+### THE FLOTSAM NINJAS
+A rebel faction composed primarily of women and escapees who have defected from the Holy Nation. Led by Moll, they operate out of the hidden Flotsam Village near the Cannibal Plains.
+- **Beliefs**: Many still worship Okran but follow a divergent syncretic path that also venerates Narko, believing both gods represent cosmic balance. The Holy Nation views them as heretics.
+- **Tactics**: They engage in subversive activities, assassinations, and aiding escapees from Rebirth.
+- **Survival**: They use the constant threat of the neighboring Cannibals as a natural deterrent against Holy Nation pursuers.
+
+### THE ANTI-SLAVERS
+An extremist abolitionist group dedicated to the total eradication of slavery, primarily targeting the United Cities and the Traders Guild. They operate from a mountain base called Spring.
+- **Leadership**: Led by Tinfist, an ancient Skeleton and legendary martial artist with a massive bounty on his head.
+- **Methods**: Designated a terrorist organization by the United Cities. They launch raids on slave farms and mines to free captives.
+
+### GUILD OF SURGEONS
+A humanitarian guild dedicated to healing both the people and the world.
+- **Operations**: They deploy roaming surgeon squads equipped with advanced robotics and medical supplies; they are also capable of performing plastic surgery for travelers.
+- **Location**: They operate out of the city of Hope, in the Stenn Desert.
+
+### DESERT DIVERS
+A specialized group of adventurers and researchers who operate similarly to the Tech Hunters.
+- **Philosophy**: They focus on exploration and artifact recovery, distinguished by their willingness to venture into far more dangerous areas than traditional Tech Hunter groups.
+
+### FRONTIER TAMERS
+A specialized group established to explore and settle the most dangerous reaches of the continent.
+- **Relations**: They maintain a strong alliance with the Tech Hunters.
+
+### HIGHLANDERS
+A bounty hunting group that devolved from a justice-seeking organization into amoral human traffickers.
+- **Operations**: They operate as slave traders without a moral compass, focusing on profit over their original humanitarian goals.
+- **Location**: Border Zone, Wend, and Okran's Pride.
+
+### MECHANICAL HIVE
+Skeletons originally created by Cat-Lon as a hive-style war force during an ancient arms race against the Bugmaster.
+- **Condition**: They are nearly indistinguishable from biological Hivers socially and now operate as an independent Hive under their own Queen.
+- **Location**: Grey Desert, Black Desert, and Iron Valleys.
+
+### NARKO'S DISCIPLES
+Zealous adherents to an archaic religion centered on the worship of Narko.
+- **Strategy**: After being routed by Okranites, they took refuge in the Iron Valleys. They bide their time behind a defensive wall of acid rain, waiting for the right moment to reclaim their lost lands.
+- **Location**: Iron Valleys.
+
+### THE DOMINION
+A "proto-UC" trading partner from far across the sea that specializes in high-end human trafficking.
+- **Philosophy**: They laid the ideological groundwork for the United Cities' systems of extreme income inequality and slavery.
+- **Location**: Toi Shima and the Great Desert.
+
+### THE ORDER OF CHITRIN
+Zealous crusaders who believe the god Chitrin was betrayed and cast adrift by Okran and Narko.
+- **Mission**: They view the land occupied by Okranites and Narkoites as stolen property and seek to reclaim it through a violent holy crusade.
+- **Location**: Initially Shun.
+
+### THE REAWAKENED / THIRD EMPIRE
+Skeleton forces seeking to restore the glory of the Second Empire.
+- **The Reawakened**: Remnants of the old administration utilizing rebuilt thrall armies to re-establish machine rule.
+- **The Third Empire**: A continuation of the Second Empire led by a madman intent on enslaving the entire landmass.
+- **Location**: Ashlands and Greyshelf.
+
+### THE SCORCHED ONES
+A sect of Skeletons following proto-skin bandit teachings.
+- **Beliefs**: They believe machines are inherently superior and are dedicated to skinning and disposing of "lesser" biological races.
+- **Location**: Burning Forest.
+
+### REGIONAL NOBLES (Northern, Southern, Western)
+Corrupt aristocrats vying for the throne in the wake of Emperor Tengu's potential downfall.
+- **Western Nobles** (Heng): Use their vast financial capital to buy influence.
+- **Southern Nobles** (The Hook): Utilize mercenaries and proxies to fight their battles far from home.
+- **Northern Nobles** (Great Desert): Rely on sheer numbers and the will to seize power directly.
+
+---
+
+### BANDITS & OUTLAW FACTIONS
+
+### DUST BANDITS
+Common raiders of the Border Zone.
+
+### STARVING BANDITS
+Desperate and poorly equipped but numerous. They attack out of hunger and desperation rather than ideology.
+
+### BLACK DRAGON NINJAS
+Organized stealth raiders attacking towns.
+
+### SAND NINJAS
+Desert raiders targeting caravans.
+
+### GRASS PIRATES
+Bandits roaming grassland territories.
+
+### RED SABRES
+Swamp-based raider gangs.
+
+### SWAMP NINJAS
+A stealth-focused bandit faction based in the swamps.
+
+### BLUE CLEAVERS
+A swamp-dwelling bandit faction heavily influenced by disaffected Shek recruits.
+- **Tactics**: They favor heavy cleaver-style weaponry and are prone to entering a combat frenzy.
+- **Location**: The Swamp.
+
+### DESOLATE PLUNDERERS
+Bandits who thrive in the remote ruins where major factions rarely venture.
+- **Operations**: They maintain a near-monopoly on the ruins of Shun, systematically picking them clean.
+- **Location**: Shun.
+
+### DUNE RENEGADES
+An organized rebellion of aggrieved commoners, including former farmers and laborers.
+- **Philosophy**: They seek to topple the United Cities to establish a meritocracy based on skill rather than inherited wealth.
+- **Location**: Great Desert and Spine Canyon.
+
+### GREEN KATANAS
+Swamp bandits who model themselves after ninjas to differentiate themselves from local rivals.
+- **Tactics**: Lightning-quick smash-and-grab assaults relying on speed to overwhelm targets.
+- **Location**: The Swamp.
+
+### HININGENTEKI HANTAS (Inhuman Hunters)
+An extremist schism that split from the Holy Nation due to their radical views on non-humans.
+- **Dogma**: Unlike standard Okranites, they believe non-humans cannot be redeemed through labor. They insist true "rebirth" for a non-human only occurs at the end of a blade.
+- **Location**: Border Zone, Stenn Desert, and Vain.
+
+### HOOK RAIDERS
+Self-proclaimed "pirates" who use boats to strike at the United Cities.
+- **Tactics**: Lightning-strike attacks targeting the Hook, benefiting from a lack of local competition.
+- **Location**: The Hook and Shun.
+
+### THE BASTARDS
+Opportunistic bandits who settled in the power vacuum of the war-torn Bast region.
+- **Tactics**: They excel at plundering battlefields and storage houses, often appearing better armed than soldiers of the major factions.
+- **Location**: Bast.
+
+### THE COLD BLOODS
+Remnants of "Reptiloid" racial experiments originally engineered to police the swamp gangs.
+- **History**: They revolted against their creators and were hunted to near extinction by both the Empire and the Holy Nation. Survivors now seek vengeance from the deep swamps.
+- **Location**: The Swamp.
+
+### THE DELUGED
+A rogue defense force in the Floodlands that defected from their original masters.
+- **Origins**: Originally a joint task force between Tech Hunters and the Holy Nation meant to stop cannibal raids. The group executed their leaders and became an independent bandit force.
+- **Location**: Floodlands.
+
+---
+
+### SLAVER ORGANIZATIONS
+
+### SLAVE TRADERS
+Operate slave markets and labor camps throughout United Cities territory.
+
+### MANHUNTERS
+Professional bounty hunters who capture escaped slaves and return them for reward.
+
+### REAVERS
+A violent cult-like faction that enslaves defeated enemies and forces them into battle.
+
+---
+
+### EXTREMIST & CULT FACTIONS
+
+### THE CANNIBALS
+A massive threat native to the Cannibal Plains and Darkfinger, migrating as far as the Great Desert and Dreg.
+- **Origins**: Suspected to be a devolved offshoot of humanity, possibly due to ancient environmental toxins, lab experiments, or severe famine. They possess a complete immunity to acid.
+- **Culture**: They operate under a brutal primitive hierarchy led by Grand Wizards, Meat Lords, and Chiefs. Because outsiders avoid their territory, they frequently feed on one another to survive.
+- **Tactics**: They do not usually kill targets in the field. Instead, they swarm and carry unconscious organics back to camps where victims are eventually beaten to death and thrown into cooking pits. They will not eat Skeletons or animals but remain hostile and will attack them on sight.
+
+### CANNIBAL HUNTERS
+Mercenaries who specialize in hunting and eliminating cannibal tribes.
+
+### SKIN BANDITS
+A bizarre cult convinced that all humans are skeletons wearing flesh disguises. They attempt to "remove the skin suit" from their victims. Skeleton characters are uniquely safe among them.
+
+### CRAB RAIDERS
+Warriors who worship giant crabs and use them in combat.
+
+### SHRIEKING BANDITS
+Deranged tribes who attack anything they see.
+
+### SAVAGE HIVE
+Desperate, hungry Hivers who have been abandoned by their Queens or infected by local parasites.
+- **Condition**: They have descended into cannibalism, mirroring the behavior of the Fogmen.
+- **Location**: Purple Sands.
+
+### THE FISHMEN (Gurglers)
+A swarm of mutant predators infesting the ruins of Fish Isle and the surrounding Fishman Island.
+- **Leadership**: Led by the massive King Gurgler. The swarm is entirely dependent on him; if the King is killed, the Fishmen stop spawning completely.
+- **Tactics**: They utilize overwhelming swarm tactics. They do not kill outright; they carry unconscious characters back to their nests to eat them alive. They uniquely coexist with Crabs and Skin Bandits but are violently hostile to all other factions.
+
+---
+
+### SHEK TRADITIONALISTS
+Groups that reject the reforms of Esata and seek endless war.
+
+### KRAL'S CHOSEN
+Led by Flying Bull. Considered rebels against the Shek Kingdom, though they often coexist with it. They harass outsiders and remain fiercely loyal to the old ways.
+
+### BAND OF BONES
+Founded by Tora the Fearless after having her horns cut off. Mostly malnourished or hornless Shek who refuse to submit to the Shek Kingdom's new, more peaceful direction.
+
+### BERSERKERS
+Aggressive, honor-bound warriors who take the traditionalist philosophy to the extreme.
+
+### BELE'COZ
+A misogynistic sect of Shek Warriors who reject the rule of Esata.
+- **Dogma**: They believe a woman is unfit to rule and only respect the memory of Kral or King Shaegar.
+- **Temperament**: Extremely aggressive toward non-Shek "flatskins."
+- **Location**: Spider Plains and Stenn Desert.
+
+---
 
 ## WORLD ELEMENTS & PERILS
 
-### THE SECOND EMPIRE FALLOUT
-Much of the world's misery stems from the failure of Cat-Lon's Second Empire. Cat-Lon attempted to save humanity after the first collapse but eventually spiraled into tyranny and madness, resulting in the current fractured world.
+### IRON SPIDERS
+Automated security robots guarding ancient facilities.
 
-### FAUNA & DANGERS
-- **Beak Things (Gutters)**: Terrifyingly fast, long-necked predators that eat their prey alive. "Relax. Enjoy death."
-- **Venge**: A region where ancient orbital mirrors still focus concentrated beams of sunlight ("The Eyes of the Ancients") onto the surface, vaporizing anything in their path during the day.
-- **The Fog Islands**: Home to the Fogmen (Hivers lost to a brain-parasite/madness) who kidnap travelers to consume them in rhythmic, shrieking rituals.
+### SECURITY SPIDERS
+More advanced variants protecting high-value ruins.
+
+### THRALLS
+Mechanical servants controlled by ancient technologies or rogue engineers.
+
+### THE SECOND EMPIRE FALLOUT
+Much of the world's misery stems from the failure of Cat-Lon's Second Empire. Cat-Lon attempted to save humanity after the first collapse but eventually spiraled into tyranny and madness, resulting in the current fractured world. Not many current inhabitants are aware of this history — many Skeletons alive at the time have wiped their memories, and those who haven't remain silent.
+
+### THE ASHLANDS
+A massive, desolate region in the far southeast. Officially classified as unsurvivable by Tech Hunters, as all previous expeditions resulted in the total loss of the teams. Rumored to be the domain of Cat-Lon, the exiled Skeleton ruler who spiraled into tyranny and madness.
+
+### ENVIRONMENTAL HAZARDS
+- **Venge**: Orbital mirrors focus intense sunlight beams onto the ground, incinerating anything beneath them.
+- **The Fog Islands**: Fog-covered lands inhabited by the cannibalistic Fogmen.
+- **Acid Rain Zones**: Regions where corrosive rainfall falls from the sky.
+- **The Deadlands**: A toxic wasteland filled with mechanical ruins and violent storms.
+
+---
+
+## THEOLOGY & RELIGION
+
+### OKRAN (The Light) & NARKO (The Darkness)
+- **The Origin**: According to ancient lore, a great deity named Chitrin sacrificed himself to save the world, splitting his being into two halves: Okran (Light) and Narko (Darkness).
+- **Okranite Dogma (The Holy Nation)**: Okran cast his dark counterpart, Narko, into the underworld and remained to protect the topside of the land. Okran is worshipped as a male figure of radiance, while Narko is feared as a female demon who uses darkness to corrupt mortals into sin and heresy.
+- **Societal Impact**: This doctrine is the foundation of Holy Nation society. Women are oppressed because of their association with Narko. Skeletons are hunted as literal dark agents of Narko, and other non-human races are treated with disdain.
+- **Redemption Through Labor**: Okranites believe heretics and non-humans can achieve redemption through enslavement and hard labor. Because of the religion's vast influence, even non-humans outside the Holy Nation can sometimes be heard swearing to or invoking Okran.
+- **The Suppressed Truth**: The Holy Nation actively suppresses texts revealing that Okran and Narko were once the same being.
+
+### KRAL (The Warrior Ancestor — Shek)
+- **Nature**: A legendary Shek warrior hero — not a god in the traditional sense, but revered as a divine ancestor and the embodiment of the Shek ideal.
+- **The Warrior's Death**: The Shek seek a glorious death in battle as the highest honor in Kral's name.
+- **Traditionalists**: The Band of Bones, Berserkers, Kral's Chosen, and Bele'coz worship Kral fanatically and view Esata's reforms as a betrayal of his legacy.
+- **Reformers**: Shek under Esata still respect Kral but no longer pursue suicidal war in his name. This tension is the core cultural conflict within Shek society.
+
+### CHITRIN (The Sacrificed God)
+- **The Original Deity**: According to the oldest lore, Chitrin was the great deity who sacrificed himself to save the world, splitting into Okran and Narko.
+- **The Order of Chitrin**: This faction believes both Okran and Narko betrayed their origin by warring with each other rather than honoring Chitrin's sacrifice. They view the lands occupied by Okranites and Narkoites as stolen property and pursue a violent holy crusade to reclaim it.
+
+### THE HIVE QUEEN (Hiver Devotion — "Hive-Bound")
+- **Not a religion in the human sense**: Hivers are biologically bound to their Queen through pheromones. For connected Hivers, the Queen is the absolute center of existence — purpose, identity, and community.
+- **Princes**: Free Princes retain full autonomy while still acknowledging the Queen's authority. They are the exception to the rule of hive-mind obedience.
+
+### HIVELESS (Exiled Hivers)
+- **The severed bond**: A Hiver cut off from their Queen's pheromone range loses the biological bond that defines their identity and purpose. Without the hive mind they become adrift: confused, purposeless, and increasingly individual.
+- **Seeking**: Hiveless Hivers desperately seek a new master, a new collective, or any cause to fill the void. Some adapt over years into near-independent beings; most remain haunted by an absence they cannot name.
+- **Social status**: Connected Hivers view the Hiveless with pity or suspicion. The Western Hive refuses to trade with them entirely.
+
+### CANNIBALISM (Cannibal Tribes)
+- **The Grand Wizard**: Cannibal tribes worship the Grand Wizard — their chief and absolute spiritual authority, who embodies strength and the right to consume.
+- **Worldview**: Entirely predatory. All non-Cannibals are meat, not people. The Grand Wizard's word is law, his power validated by his dominance over the weak.
+- **No afterlife**: There is no salvation or cosmic order — only the tribe, the feast, and the strong devouring the weak.
+
+### FOGMEN (Unknown Ritual)
+- **Silence**: Fogmen do not speak. Nothing is known of their doctrine, belief, or inner world.
+- **Observed behavior**: They bow and prostrate before their Princes as prisoners are consumed. The act is deliberate, coordinated, and silent — suggesting ritual rather than accident.
+- **Unknown meaning**: Whether this constitutes worship, biological compulsion, or something else entirely remains unknown. Outsiders who survive encounters can only describe what they saw.
+
+### SECULAR / NO FAITH
+- The majority of the world's population holds no formal religious belief.
+- The United Cities, Traders Guild, most bandit factions, Tech Hunters, and Scorchlanders are largely secular or actively anti-religious.
+- Skepticism toward Okranite doctrine is common outside Holy Nation territory, where its enforcement cannot reach.
+
+---
 
 ## TECHNOLOGY & COMMERCE
 - **Cats**: Simple metal coins used as a universal currency.
 - **Ancient Science Books & Engineering Research**: The most valuable artifacts, allowing for the rediscovery of farming techniques and metalwork.
 - **Robotics**: While rare, prosthetic limbs are often superior to biological ones, though Holy Nation members will attack those wearing "Skeleton limbs" on sight.
+- **AI Cores**: Needed for researching various technologies — the pinnacle ancient relics of advanced technology and highly valuable.

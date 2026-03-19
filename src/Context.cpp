@@ -99,6 +99,42 @@ void GetAllCharacterItems(Character *npc, std::vector<Item *> &outItems) {
       }
     }
   }
+
+  // SHOP UPGRADE: Include items from shop counters if this is a trader in a building
+  try {
+    if (npc->isATrader()) {
+      const hand &buildingHandle = npc->isIndoors();
+      if (buildingHandle.isValid()) {
+        Building *b = buildingHandle.getBuilding();
+        if (b) {
+          lektor<Building *> counters;
+          b->findAllFurnitureWithFunction(counters, BF_SHOP);
+          for (uint32_t i = 0; i < counters.size(); ++i) {
+            Building *counter = counters[i];
+            if (counter) {
+              Inventory *shopInv = counter->getInventory();
+              if (shopInv) {
+                lektor<InventorySection *> &sections =
+                    shopInv->sectionsInSearchOrder;
+                for (uint32_t s = 0; s < sections.size(); ++s) {
+                  InventorySection *sect = sections[s];
+                  if (sect) {
+                    const Ogre::vector<InventorySection::SectionItem>::type
+                        &items = sect->getItems();
+                    for (uint32_t j = 0; j < items.size(); ++j) {
+                      if (items[j].item)
+                        outItems.push_back(items[j].item);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (...) {
+  }
 }
 
 static std::string GetHealthStatus(Character *npc) {
@@ -169,11 +205,36 @@ static std::string GetVisibleEquipment(Character *npc) {
   return eq;
 }
 
-std::string GetStorageIDFor(Character *npc, const std::string &name,
-                            const std::string &factionName) {
-  // PERSISTENCE UPGRADE: Use name-only storage IDs.
-  // This solves the "Faction Change" problem and provides a cleaner filesystem.
-  return name;
+std::string GetStorageIDFor(Character *npc) {
+  // Transition Phase: Deprecate generic string names in favor of immutable Kenshi Object strings
+  if (!npc)
+    return "Unknown";
+  try {
+    return GetPersistentIDFor(npc);
+  } catch (...) {}
+  return "Unknown";
+}
+
+std::string GetRuntimeIDFor(Character *npc) {
+  if (!npc || (uintptr_t)npc < 0x1000)
+    return "";
+  try {
+    return ToString((int)npc->getHandle().serial);
+  } catch (...) {
+  }
+  return "";
+}
+
+std::string GetPersistentIDFor(Character *npc) {
+  if (!npc || (uintptr_t)npc < 0x1000)
+    return "";
+  try {
+    hand h = npc->getHandle();
+    if (h.isValid())
+      return h.toString();
+  } catch (...) {
+  }
+  return "";
 }
 
 std::string GetIdentityFaction(Character *npc) {
@@ -334,6 +395,11 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
     json += "\"id\": \"hand_" + ToString((int)npc->getHandle().serial) + "\",";
   }
 
+  std::string runtimeID = GetRuntimeIDFor(npc);
+  std::string persistentID = GetPersistentIDFor(npc);
+  json += "\"runtime_id\": \"" + EscapeJSON(runtimeID) + "\",";
+  json += "\"persistent_id\": \"" + EscapeJSON(persistentID) + "\",";
+
   // Robust Race Name
   RaceData *race = nullptr;
   try {
@@ -411,7 +477,7 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
 
   // Stable Storage ID: Prioritize InstanceID (UUID) or the stable Identity
   // Faction.
-  std::string stableID = GetStorageIDFor(npc, name, identityFaction);
+  std::string stableID = GetStorageIDFor(npc);
   json += "\"storage_id\": \"" + EscapeJSON(stableID) + "\",";
 
   // Relation to Player Faction
@@ -526,13 +592,17 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
         LeaveCriticalSection(&g_stateMutex);
 
         // Include storage_id for perfect overhearer-to-participant mapping
-        std::string o_sid = GetStorageIDFor(other, o_name, o_sid_fact);
+        std::string o_sid = GetStorageIDFor(other);
+        std::string o_runtime_id = GetRuntimeIDFor(other);
+        std::string o_persistent_id = GetPersistentIDFor(other);
 
         // Sensory details for "looking" around
         std::string o_health = GetHealthStatus(other);
         std::string o_equip = GetVisibleEquipment(other);
 
         json += "{\"name\":\"" + EscapeJSON(o_name) + "\",";
+        json += "\"runtime_id\":\"" + EscapeJSON(o_runtime_id) + "\",";
+        json += "\"persistent_id\":\"" + EscapeJSON(o_persistent_id) + "\",";
         json += "\"race\":\"" + EscapeJSON(o_rn) + "\",";
         json += "\"faction\":\"" + EscapeJSON(o_fn) + "\",";
         json += "\"gender\":\"" + EscapeJSON(o_gender) + "\",";
