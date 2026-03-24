@@ -3,7 +3,8 @@
 
 import re
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Dict, Set
+from typing import Any, Optional, List, Tuple, Dict, Set
+
 
 @dataclass
 class Event:
@@ -155,10 +156,11 @@ def involves_player(event: Event) -> bool:
 
 def get_player_faction_name(event: Event) -> str:
     for faction in (event.source_faction, event.target_faction):
-        if is_player_faction(faction):
-            m = re.search(r"Player's Squad:\s*(.+)$", faction, re.IGNORECASE)
-            if m:
-                return canonical_spaces(m.group(1))
+        if faction:
+            if is_player_faction(faction):
+                m = re.search(r"Player's Squad:\s*(.+)$", faction, re.IGNORECASE)
+                if m:
+                    return canonical_spaces(m.group(1))
     return "Player squad"
 
 
@@ -249,7 +251,8 @@ def join_with_and(parts: List[str]) -> str:
 
 
 def pair_key(a: str, b: str) -> Tuple[str, str]:
-    return tuple(sorted((a, b)))
+    a, b = sorted((a, b))
+    return a, b
 
 
 def setback_word(n: int) -> str:
@@ -386,7 +389,7 @@ def summarize_player_day(day: int, events: List[Event]) -> Optional[str]:
     return f"[Day {day}] [player-summary] " + ". ".join(parts) + "."
 
 
-def build_day_narrative(day: int, loc_summaries: Dict[str, Dict[str, object]], player_summary: Optional[str]) -> Optional[str]:
+def build_day_narrative(day: int, loc_summaries: Dict[str, Dict[str, Any]], player_summary: Optional[str]) -> Optional[str]:
     pieces: List[str] = []
 
     for loc, info in sorted(loc_summaries.items()):
@@ -695,5 +698,3 @@ def extra_token_reduction(text: str) -> str:
             last_blank = False
 
     return "\n".join(final_lines).strip() + "\n"
-
-

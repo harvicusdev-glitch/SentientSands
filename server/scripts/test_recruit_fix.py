@@ -67,12 +67,18 @@ else:
     print("SUCCESS: The system properly anchored to the original config instead of fragmenting to", f2)
 
 try:
-    if os.path.exists(f1): os.remove(f1)
-    if os.path.exists(f2): os.remove(f2)
+    if os.path.exists(f1):
+        os.remove(f1)
+    if os.path.exists(f2):
+        os.remove(f2)
+
     h1 = os.path.join(CHAR_DIR, f"history/Masaru__{s1}_History.txt")
     h2 = os.path.join(CHAR_DIR, f"history/Masaru__{s2}_History.txt")
-    if os.path.exists(h1): os.remove(h1)
-    if os.path.exists(h2): os.remove(h2)
+
+    if os.path.exists(h1):
+        os.remove(h1)
+    if os.path.exists(h2):
+        os.remove(h2)
 except Exception:
     pass
 

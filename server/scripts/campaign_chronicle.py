@@ -21,41 +21,38 @@ _CHRONICLE_MAX_ACTIVE = 15
 
 # Maps region name → set of faction names geographically present there.
 _KENSHI_REGION_FACTIONS = {
-    "Holy Lands":      {"Holy Nation", "Holy Nation Outlaws", "Flotsam Ninjas",
-                        "Hiningenteki Hantas", "Highlanders"},
-    "Great Desert":    {"United Cities", "Traders Guild", "Slave Traders",
-                        "Anti-Slavers", "Tech Hunters", "Western Hive"},
-    "South Wetlands":  {"United Cities", "Traders Guild", "Slave Traders", "Anti-Slavers"},
-    "Stenn Desert":    {"Shek Kingdom", "Kral's Chosen", "Band of Bones", "Berserkers", "Reavers"},
-    "Hook":            {"Shek Kingdom", "Reavers", "Band of Bones"},
-    "Black Desert":    {"Mechanical Hive", "Second Empire Exile", "Tech Hunters", "Skeletons"},
-    "Iron Valleys":    {"Mechanical Hive", "Tech Hunters"},
-    "Grey Desert":     {"Mechanical Hive", "Skeletons", "Tech Hunters"},
-    "The Swamp":       {"Blue Cleavers", "Green Katanas", "Swamp Ruffians", "Cold Bloods"},
-    "Shun":            {"Desolate Plunderers", "Hook Raiders", "Tech Hunters"},
-    "Border Zone":     {"United Cities", "Shek Kingdom", "Traders Guild",
-                        "Tech Hunters", "Shinobi Thieves", "Nomads"},
-    "The Hub":         {"Tech Hunters", "Shinobi Thieves", "Nomads"},
+    "Holy Lands"        : {"Holy Nation", "Holy Nation Outlaws", "Flotsam Ninjas", "Hiningenteki Hantas", "Highlanders"},
+    "Great Desert"      : {"United Cities", "Traders Guild", "Slave Traders", "Anti-Slavers", "Tech Hunters", "Western Hive"},
+    "South Wetlands"    : {"United Cities", "Traders Guild", "Slave Traders", "Anti-Slavers"},
+    "Stenn Desert"      : {"Shek Kingdom", "Kral's Chosen", "Band of Bones", "Berserkers", "Reavers"},
+    "Hook"              : {"Shek Kingdom", "Reavers", "Band of Bones"},
+    "Black Desert"      : {"Mechanical Hive", "Second Empire Exile", "Tech Hunters", "Skeletons"},
+    "Iron Valleys"      : {"Mechanical Hive", "Tech Hunters"},
+    "Grey Desert"       : {"Mechanical Hive", "Skeletons", "Tech Hunters"},
+    "The Swamp"         : {"Blue Cleavers", "Green Katanas", "Swamp Ruffians", "Cold Bloods"},
+    "Shun"              : {"Desolate Plunderers", "Hook Raiders", "Tech Hunters"},
+    "Border Zone"       : {"United Cities", "Shek Kingdom", "Traders Guild", "Tech Hunters", "Shinobi Thieves", "Nomads"},
+    "The Hub"           : {"Tech Hunters", "Shinobi Thieves", "Nomads"},
     # Isolated — only learn events if explicitly in factions_full
-    "Cannibal Plains": set(),
-    "Fog Islands":     set(),
-    "The Gut":         set(),
-    "Ashlands":        set(),
+    "Cannibal Plains"   : set(),
+    "Fog Islands"       : set(),
+    "The Gut"           : set(),
+    "Ashlands"          : set(),
 }
 
 _KENSHI_REGION_NEIGHBORS = {
-    "Holy Lands":      ["Great Desert", "Stenn Desert", "Border Zone"],
-    "Great Desert":    ["Holy Lands", "South Wetlands", "Stenn Desert", "Border Zone", "The Hub"],
-    "South Wetlands":  ["Great Desert", "The Swamp"],
-    "Stenn Desert":    ["Great Desert", "Holy Lands", "Hook", "Black Desert", "Border Zone"],
-    "Hook":            ["Stenn Desert", "Black Desert"],
-    "Black Desert":    ["Stenn Desert", "Hook", "Iron Valleys", "Grey Desert"],
-    "Iron Valleys":    ["Black Desert", "Border Zone"],
-    "Grey Desert":     ["Black Desert", "Ashlands"],
-    "The Swamp":       ["South Wetlands"],
-    "Shun":            ["Stenn Desert", "Hook"],
-    "Border Zone":     ["Holy Lands", "Great Desert", "Stenn Desert", "Iron Valleys", "The Hub"],
-    "The Hub":         ["Great Desert", "Border Zone"],
+    "Holy Lands"        : ["Great Desert", "Stenn Desert", "Border Zone"],
+    "Great Desert"      : ["Holy Lands", "South Wetlands", "Stenn Desert", "Border Zone", "The Hub"],
+    "South Wetlands"    : ["Great Desert", "The Swamp"],
+    "Stenn Desert"      : ["Great Desert", "Holy Lands", "Hook", "Black Desert", "Border Zone"],
+    "Hook"              : ["Stenn Desert", "Black Desert"],
+    "Black Desert"      : ["Stenn Desert", "Hook", "Iron Valleys", "Grey Desert"],
+    "Iron Valleys"      : ["Black Desert", "Border Zone"],
+    "Grey Desert"       : ["Black Desert", "Ashlands"],
+    "The Swamp"         : ["South Wetlands"],
+    "Shun"              : ["Stenn Desert", "Hook"],
+    "Border Zone"       : ["Holy Lands", "Great Desert", "Stenn Desert", "Iron Valleys", "The Hub"],
+    "The Hub"           : ["Great Desert", "Border Zone"],
     "Cannibal Plains": [], "Fog Islands": [], "The Gut": [], "Ashlands": ["Grey Desert"],
 }
 
@@ -65,11 +62,12 @@ _ISOLATED_FACTIONS = frozenset({
     "Beak Things", "Spider Clan", "Reawakened", "Third Empire",
 })
 
+
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
 
-def load_chronicle(cdir):
+def load_chronicle(cdir) -> list[dict]:
     """Load active events from campaign_chronicle.json. Returns [] on any error."""
     path = os.path.join(cdir, "campaign_chronicle.json")
     if not os.path.exists(path):
@@ -116,6 +114,7 @@ def append_major_event(cdir, event_dict):
     events.append(event_dict)
     return save_chronicle(cdir, events)
 
+
 # ---------------------------------------------------------------------------
 # Prompt injection
 # ---------------------------------------------------------------------------
@@ -127,12 +126,12 @@ def build_chronicle_block(npc_data, cdir):
     full_lines, vague_lines = [], []
 
     for event in load_chronicle(cdir):
-        summary         = event.get("summary", "").strip()
-        factions_full   = event.get("factions_full", [])
-        radius          = event.get("radius", "local")
+        summary = event.get("summary", "").strip()
+        factions_full = event.get("factions_full", [])
+        radius = event.get("radius", "local")
         location_region = event.get("location_region", "")
-        location        = event.get("location", "the wasteland")
-        day             = event.get("day", "")
+        location = event.get("location", "the wasteland")
+        day = event.get("day", "")
 
         summary_vague = event.get("summary_vague") or (
             f"Word has it that something significant occurred in {location}"

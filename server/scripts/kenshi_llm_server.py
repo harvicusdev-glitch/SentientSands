@@ -14,6 +14,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from typing import Any, Union
+
+from flask import render_template, send_from_directory
+from trade_items import load_item_aliases, normalize_trade_item_name
+from save_reader import build_world_index
+from personality_rules import (
+    ANIMAL_RACES,
+    MACHINE_RACES,
+    build_loyalty_note,
+    generate_npc_traits,
+    get_trait_parts,
+)
+from campaign_chronicle import append_major_event, build_chronicle_block, load_chronicle, save_chronicle
+from configuration import (
+    CAMPAIGNS_DIR,
+    CHARACTERS_DIR as DEFAULT_CHARACTERS_DIR,
+    GENERIC_NAMES_PATH,
+    KENSHI_MOD_DIR,
+    KENSHI_SERVER_DIR,
+    LOCALIZATION_PATH,
+    MODELS_PATH,
+    NAMES_PATH,
+    PROVIDERS_PATH,
+    TEMPLATES_DIR,
+    persist_current_settings,
+    get_config_radii,
+    load_settings,
+    save_settings,
+)
+import dack
 import os
 import ctypes
 import json
@@ -40,34 +70,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-import dack
-from configuration import (
-    CAMPAIGNS_DIR,
-    CHARACTERS_DIR as DEFAULT_CHARACTERS_DIR,
-    GENERIC_NAMES_PATH,
-    KENSHI_MOD_DIR,
-    KENSHI_SERVER_DIR,
-    LOCALIZATION_PATH,
-    MODELS_PATH,
-    NAMES_PATH,
-    PROVIDERS_PATH,
-    TEMPLATES_DIR,
-    persist_current_settings,
-    get_config_radii,
-    load_settings,
-    save_settings,
-)
-from campaign_chronicle import append_major_event, build_chronicle_block, load_chronicle, save_chronicle
-from personality_rules import (
-    ANIMAL_RACES,
-    MACHINE_RACES,
-    build_loyalty_note,
-    generate_npc_traits,
-    get_trait_parts,
-)
-from save_reader import build_world_index
-from trade_items import load_item_aliases, normalize_trade_item_name
-
+_sge_parse, _sge_compress, _sge_reduce = None, None, None
 try:
     from simplify_global_events import (
         extract_raw_events_from_text as _sge_parse,
@@ -84,13 +87,13 @@ PROVIDERS_CONFIG = {}
 NAMES_CONFIG = {}
 GENERIC_CONFIG = {}
 LOCALIZATION_CONFIG = {}
-CURRENT_MODEL_KEY = "player2-default" # Default
+CURRENT_MODEL_KEY = "player2-default"  # Default
 ACTIVE_CAMPAIGN = "Default"      # Default
 
-CHARACTERS_DIR = DEFAULT_CHARACTERS_DIR # Initial fallback; campaign switches overwrite this
-CURRENT_CAMPAIGN = "Default" # Global track for UI
-LAST_GENERATE_TIME = 0 # Track last rumor timestamp
-GLOBAL_SYNTHESIS_INTERVAL = 60 # Default minutes
+CHARACTERS_DIR = DEFAULT_CHARACTERS_DIR  # Initial fallback; campaign switches overwrite this
+CURRENT_CAMPAIGN = "Default"  # Global track for UI
+LAST_GENERATE_TIME = 0  # Track last rumor timestamp
+GLOBAL_SYNTHESIS_INTERVAL = 60  # Default minutes
 
 EVENT_HISTORY = []
 EVENT_HISTORY_SET = set()  # Parallel set for O(1) dedup lookup
@@ -100,14 +103,14 @@ PROGRESS_LOCK = threading.Lock()
 LIVE_CONTEXTS = {}
 LIVE_NAME_INDEX = {}
 PLAYER_CONTEXT = {}
-CHARACTER_CACHE = {} # <-- NEW CACHE
+CHARACTER_CACHE = {}  # <-- NEW CACHE
 CACHE_LOCK = threading.Lock()
 LAST_NPC_NAME = None
 LAST_NPC_KEY = None
 PLAYER2_SESSION_KEY = None
 EVENT_THROTTLE = {}
 THROTTLE_LOCK = threading.Lock()
-LAST_STATE_LOG = {} # { "NPCName|etype": "last_msg" }
+LAST_STATE_LOG = {}  # { "NPCName|etype": "last_msg" }
 STATE_LOCK = threading.Lock()
 AMBIENT_LOCK = threading.Lock()
 LAST_DIRECT_CHAT_KEY = None
@@ -133,21 +136,22 @@ LORE_DATABASE = []
 
 # Type-based grouping for fetch_dynamic_lore — controls prompt section order,
 # headers, and per-type character budgets.
-_LORE_TYPE_ORDER   = ["global", "race", "faction", "theology", "region"]
+_LORE_TYPE_ORDER = ["global", "race", "faction", "theology", "region"]
 _LORE_TYPE_HEADERS = {
-    "global":   "WORLD CONTEXT",
-    "race":     "RACE",
-    "faction":  "FACTION",
+    "global": "WORLD CONTEXT",
+    "race": "RACE",
+    "faction": "FACTION",
     "theology": "RELIGION",
-    "region":   "REGION",
+    "region": "REGION",
 }
 _LORE_TYPE_BUDGETS = {
-    "global":   650,   # world overview + commerce — always injected
-    "race":     400,   # race biology/psychology — usually 1 chunk
+    "global": 650,   # world overview + commerce — always injected
+    "race": 400,   # race biology/psychology — usually 1 chunk
     "faction": 1100,   # major faction + relevant minor factions (2 major chunks ~500 chars each)
     "theology": 400,   # faith/religion context
-    "region":   500,   # environmental/location hazards (chunks are 330-450 chars)
+    "region": 500,   # environmental/location hazards (chunks are 330-450 chars)
 }
+
 
 def initialize_lore_database():
     """Parses the JSON lore file into system memory on server startup."""
@@ -172,7 +176,7 @@ def initialize_lore_database():
                 for chunk in LORE_DATABASE:
                     missing = _required_keys - chunk.keys()
                     if missing:
-                        logging.warning(f"LORE VALIDATION: chunk '{chunk.get('id','?')}' missing fields: {missing}")
+                        logging.warning(f"LORE VALIDATION: chunk '{chunk.get('id', '?')}' missing fields: {missing}")
                         _warnings += 1
                     elif chunk["type"] not in _valid_types:
                         logging.warning(f"LORE VALIDATION: chunk '{chunk['id']}' has unknown type '{chunk['type']}' — will be ignored by fetch_dynamic_lore")
@@ -186,6 +190,7 @@ def initialize_lore_database():
     except Exception as e:
         logging.error(f"SYSTEM: Critical error parsing {lore_db_path}: {e}")
         LORE_DATABASE = []
+
 
 # --- FACTION METADATA & LORE ENHANCEMENTS ---
 FACTION_METADATA = {
@@ -251,16 +256,17 @@ FACTION_METADATA = {
     }
 }
 
+
 def get_faction_info(faction_name):
     """Returns a formatted string describing the faction and its leader."""
     if not faction_name or faction_name == "Unknown":
         return "Unknown Faction (Remnant or Drifter)"
-    
+
     # Normalization for Player and various squad names
     clean_name = faction_name
     if "Player" in faction_name or faction_name == "Nameless":
         clean_name = "Nameless"
-    
+
     meta = FACTION_METADATA.get(clean_name)
     if not meta:
         # Case-insensitive fallback
@@ -268,54 +274,58 @@ def get_faction_info(faction_name):
             if k.lower() in clean_name.lower() or clean_name.lower() in k.lower():
                 meta = v
                 break
-    
+
     if meta:
         leader_part = f" (Led by {meta['Leader']})" if meta.get('Leader') else ""
         return f"{clean_name}{leader_part}: {meta['Desc']}"
-    
+
     return f"{faction_name}: A minor or specialized group in the wasteland."
 
+
 def sanitize_llm_text(text):
-    if not text: return ""
+    if not text:
+        return ""
     # Replace common unicode/smart characters that Kenshi's engine might choke on
     replacements = {
-        '\u2018': "'", '\u2019': "'", # Smart single quotes
-        '\u201c': '"', '\u201d': '"', # Smart double quotes
-        '\u2013': '-', '\u2014': '-', # En/Em dashes
+        '\u2018': "'", '\u2019': "'",  # Smart single quotes
+        '\u201c': '"', '\u201d': '"',  # Smart double quotes
+        '\u2013': '-', '\u2014': '-',  # En/Em dashes
         '\u2026': '...',             # Ellipsis
         '\u00a0': ' ',                # Non-breaking space
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
-    
+
     # Standardize line endings
     text = text.replace('\r\n', '\n')
     text = text.replace('\\n', '\n')  # Catch literal escaped newlines
     text = text.replace('\\r', '')    # Catch literal escaped carriage returns
     return text
 
+
 def robust_json_parse(text):
     """Attempt to parse JSON while handling common LLM formatting errors."""
-    if not text: return None
-    
+    if not text:
+        return None
+
     # 1. Basic cleaning
     text = text.strip()
-    
+
     # 2. Extract content between first { and last }
     start = text.find('{')
     end = text.rfind('}')
     if start == -1 or end == -1:
         return None
-    
-    json_str = text[start:end+1]
-    
+
+    json_str = text[start:end + 1]
+
     # 3. Remove trailing commas within arrays/objects using regex
     json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
-    
+
     # 4. Filter out any single-line comments // or multi-line /* */
     json_str = re.sub(r'//.*?\n', '\n', json_str)
     json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
-    
+
     try:
         # strict=False prevents crashes from unescaped LLM newlines
         return json.loads(json_str, strict=False)
@@ -327,6 +337,7 @@ def robust_json_parse(text):
         except:
             logging.error(f"ROBUST_JSON_PARSE: Final failure on string: {json_str[:200]}...")
             return None
+
 
 # Setup logging
 _log_fmt = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -344,26 +355,26 @@ _debug_file = os.path.join(KENSHI_SERVER_DIR, "debug.log")
 
 try:
     # server.log: 512KB limit, 3 backups
-    _file_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=512*1024, backupCount=3, encoding='utf-8')
+    _file_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=512 * 1024, backupCount=3, encoding='utf-8')
     _file_handler.setFormatter(_log_fmt)
-    
+
     _stream_handler = logging.StreamHandler()
     _stream_handler.setFormatter(_log_fmt)
-    
+
     # debug.log: 1MB limit, 1 backup
-    _debug_handler = logging.handlers.RotatingFileHandler(_debug_file, maxBytes=1024*1024, backupCount=1, encoding='utf-8')
+    _debug_handler = logging.handlers.RotatingFileHandler(_debug_file, maxBytes=1024 * 1024, backupCount=1, encoding='utf-8')
     _debug_handler.setFormatter(_log_fmt)
     _debug_handler.setLevel(logging.DEBUG)
 
     # Global config
     logging.basicConfig(level=logging.INFO, handlers=[_stream_handler, _file_handler, _debug_handler])
-    
+
     # Specialized logger for high-volume telemetry (prompts, raw data)
     # This prevents server.log from becoming a wall of text.
     debug_logger = logging.getLogger('kenshi_debug')
     debug_logger.setLevel(logging.DEBUG)
     debug_logger.addHandler(_debug_handler)
-    debug_logger.propagate = False # Do not double-log to root handlers
+    debug_logger.propagate = False  # Do not double-log to root handlers
 
 except Exception as e:
     # Fallback to stream only if file handler fails
@@ -377,6 +388,8 @@ logging.getLogger('urllib3').setLevel(logging.WARNING)
 initialize_lore_database()  # Deferred: logging must be configured first
 
 # Kill any existing process on port 5000 before starting
+
+
 def kill_old_servers():
     try:
         # Windows specific: find processes on port 5000
@@ -391,17 +404,19 @@ def kill_old_servers():
                 if pid > 0 and pid != os.getpid():
                     logging.info(f"Terminating old server process (PID {pid}) on port 5000...")
                     # Force kill to ensure it's gone
-                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                                 capture_output=True, shell=True)
-                    time.sleep(1) # Give it a moment to clear the port
+                    subprocess.run(['taskkill', '/F', '/PID', str(pid)],
+                                   capture_output=True, shell=True)
+                    time.sleep(1)  # Give it a moment to clear the port
     except Exception as e:
         logging.warning(f"Port cleanup diagnostic: {e}")
+
 
 kill_old_servers()
 
 app = Flask(__name__, template_folder=os.path.join(KENSHI_SERVER_DIR, "templates"))
 # JSON_AS_ASCII = True is default, which is safer for our DLL pipe
 app.config['JSON_AS_ASCII'] = True
+
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -417,10 +432,12 @@ def handle_exception(e):
     return jsonify({"error": str(e), "status": "error"}), 500
 
 # 3. Load Configurations
+
+
 def load_configs():
     global MODELS_CONFIG, PROVIDERS_CONFIG, NAMES_CONFIG
     logging.debug("Checking configurations...")
-    
+
     # Create config dir if missing
     config_dir = os.path.join(KENSHI_SERVER_DIR, "config")
     if not os.path.exists(config_dir):
@@ -433,7 +450,7 @@ def load_configs():
             logging.debug(f"Loaded {len(MODELS_CONFIG)} models.")
         except Exception as e:
             logging.error(f"Failed to load models.json: {e}")
-            
+
     if os.path.exists(PROVIDERS_PATH):
         try:
             with open(PROVIDERS_PATH, "r") as f:
@@ -471,15 +488,18 @@ def load_configs():
         except Exception as e:
             logging.error(f"Failed to load localization.json: {e}")
 
+
 # Event History Persistence
 GLOBAL_EVENT_COUNTER = 0
 
 # --- CAMPAIGN MANAGEMENT ---
+
+
 def get_campaign_dir():
     if not os.path.exists(CAMPAIGNS_DIR):
         os.makedirs(CAMPAIGNS_DIR)
         logging.info(f"Created base campaigns directory: {CAMPAIGNS_DIR}")
-        
+
     cdir = os.path.join(CAMPAIGNS_DIR, ACTIVE_CAMPAIGN)
     if not os.path.exists(cdir):
         os.makedirs(cdir)
@@ -488,13 +508,14 @@ def get_campaign_dir():
         ensure_campaign_seeded(cdir)
     return cdir
 
+
 def ensure_campaign_seeded(cdir):
     """Populates a campaign directory with default templates and folders."""
     try:
         if not os.path.exists(os.path.join(cdir, "characters")):
             os.makedirs(os.path.join(cdir, "characters"))
-            
-        # Copy essential personal files to campaigns by default. 
+
+        # Copy essential personal files to campaigns by default.
         # All other templates (rules, lore, etc.) remain global in TEMPLATES_DIR.
         for component in ["character_bio.txt", "player_faction_description.txt"]:
             src = os.path.join(TEMPLATES_DIR, component)
@@ -503,7 +524,7 @@ def ensure_campaign_seeded(cdir):
                 import shutil
                 shutil.copy2(src, dst)
                 logging.info(f"CAMPAIGN: Seeded '{os.path.basename(cdir)}' with {component}")
-            
+
         # Ensure world_events.txt exists (Campaign-Specific History)
         ev_path = os.path.join(cdir, "world_events.txt")
         if not os.path.exists(ev_path):
@@ -519,19 +540,20 @@ def ensure_campaign_seeded(cdir):
     except Exception as e:
         logging.error(f"Failed to seed campaign directory {cdir}: {e}")
 
+
 def migrate_to_campaigns():
     """Moves legacy data to campaigns/Default if not already migrated."""
     try:
         if not os.path.exists(CAMPAIGNS_DIR):
             os.makedirs(CAMPAIGNS_DIR)
-            
+
         default_dir = os.path.join(CAMPAIGNS_DIR, "Default")
         is_new_default = not os.path.exists(default_dir)
-        
+
         if is_new_default:
             os.makedirs(default_dir)
             logging.info("MIGRATION: Created Default campaign folder")
-            
+
         import shutil
         # 1. Characters
         old_chars = os.path.join(KENSHI_SERVER_DIR, "characters")
@@ -542,12 +564,12 @@ def migrate_to_campaigns():
                 logging.info("MIGRATION: Moved legacy characters to campaigns/Default")
             except Exception as e:
                 logging.error(f"MIGRATION ERROR (Characters): {e}")
-            
+
         # 2. Registry
         old_reg = os.path.join(KENSHI_MOD_DIR, "kenshi_ai_registry")
         if not os.path.exists(old_reg):
             old_reg = os.path.join(KENSHI_MOD_DIR, "sentient_sands_registry")
-        
+
         new_reg = os.path.join(default_dir, "sentient_sands_registry")
         if os.path.exists(old_reg) and not os.path.exists(new_reg):
             try:
@@ -578,21 +600,22 @@ def migrate_to_campaigns():
 
         # Ensure templates exist in Default (always check this during migration)
         ensure_campaign_seeded(default_dir)
-            
+
     except Exception as e:
         logging.error(f"MIGRATION: Critical failure in migration logic: {e}")
+
 
 def load_campaign_config():
     """Initializes paths based on the active campaign."""
     global CHARACTERS_DIR, EVENT_HISTORY, EVENT_HISTORY_SET, SHOP_STOCK
     try:
         cdir = get_campaign_dir()
-        
+
         # 1. Update Directories
         CHARACTERS_DIR = os.path.join(cdir, "characters")
-        if not os.path.exists(CHARACTERS_DIR): 
+        if not os.path.exists(CHARACTERS_DIR):
             os.makedirs(CHARACTERS_DIR)
-        
+
         # 2. Load Persisted Event History
         hist_path = os.path.join(cdir, "event_history.json")
         if os.path.exists(hist_path):
@@ -628,18 +651,20 @@ def load_campaign_config():
     except Exception as e:
         logging.error(f"CAMPAIGN: Critical failure loading config: {e}")
 
+
 def send_to_pipe(cmd):
     """
     Robust pipe transmission. Prepends CMD: if not already present.
     """
     if not (cmd.startswith("CMD:") or cmd.startswith("NPC_") or cmd.startswith("PLAYER_") or cmd.startswith("SHOW_HISTORY") or cmd.startswith("NOTIFY:")):
         cmd = "CMD: " + cmd
-        
+
     try:
         with open(r'\\.\pipe\SentientSands', 'wb') as f:
             f.write(cmd.encode('utf-8'))
     except:
         pass
+
 
 def push_generic_names_to_dll():
     """Syncs generic name lists to the C++ renamer via pipe."""
@@ -653,6 +678,7 @@ def push_generic_names_to_dll():
     except Exception as e:
         logging.error(f"Failed to sync generic names to DLL: {e}")
 
+
 def save_campaign_history():
     try:
         cdir = get_campaign_dir()
@@ -663,50 +689,51 @@ def save_campaign_history():
         logging.error(f"Failed to save event history: {e}")
 
 
-
 def is_npc_name_generic(name):
     """Centralized check for generic NPC names to ensure they get unique identities."""
-    if not name: return True
-    
+    if not name:
+        return True
+
     # Strip serial IDs (Name|12345)
     clean_name = str(name).split('|')[0].strip()
-    
+
     # Check against hardcoded fallback list (GENERIC_NAMES)
     if clean_name in GENERIC_NAMES:
         return True
-        
+
     # Check against loaded generic_names.json config
     prefixes = GENERIC_CONFIG.get("prefixes", [])
     keywords = GENERIC_CONFIG.get("keywords", [])
-    
+
     # Exact or substring matches for prefixes (case-insensitive)
     lower_clean = clean_name.lower()
     if any(p.lower() in lower_clean for p in prefixes):
         return True
-        
+
     # Keyword substring matches
     if any(k.lower() in lower_clean for k in keywords):
         return True
-        
+
     # Default keywords if config failed to load
     if not keywords:
         default_keywords = [
-            "Bandit", "Guard", "Citizen", "Soldier", "Warrior", "Heavy", "Captain", 
+            "Bandit", "Guard", "Citizen", "Soldier", "Warrior", "Heavy", "Captain",
             "Sentinel", "Servant", "Wanderer", "Peasant", "Settler", "Thug", "Barman", "Pacifier"
         ]
         if any(k.lower() in lower_clean for k in default_keywords):
             return True
-            
+
     return False
 
+
 GENERIC_NAMES = [
-    "Hungry Bandit", "Dust Bandit", "Starving Vagrant", "Drifter", "Samurai", 
+    "Hungry Bandit", "Dust Bandit", "Starving Vagrant", "Drifter", "Samurai",
     "Holy Sentinel", "Holy Servant", "Swamper", "Tech Hunter", "Mercenary",
     "Shop Guard", "Caravan Guard", "Slave Hunter", "Slaver", "Manhunter",
     "Escaped Slave", "Rebirth Slave", "United Cities Citizen", "Holy Nation Citizen",
     "Shek Warrior", "Hive Worker", "Hive Soldier", "Hive Prince", "Fogman",
     "Barman", "Pacifier", "Bar Thug",
-    "Cannibal", "Outlaw", "Farmer", "Nomad", "Trader", "Gate Guard", 
+    "Cannibal", "Outlaw", "Farmer", "Nomad", "Trader", "Gate Guard",
     "Unknown Entity", "Someone", "Mercenary Heavy", "Mercenary Captain",
     "Holy Nation Outlaw", "Holy Nation Peasant", "United Cities Peasant",
     "Wandering Assassin", "Trader Guard", "Hiver Ronin", "Skeleton Legion",
@@ -726,8 +753,10 @@ KENSHI_NAME_POOL = [
     "Kess", "Tory", "Vann", "Sael", "Miro", "Lorn", "Gryf", "Dael", "Seld", "Kurv"
 ]
 
+
 def get_used_names():
-    if not os.path.exists(CHARACTERS_DIR): return set()
+    if not os.path.exists(CHARACTERS_DIR):
+        return set()
     names = set()
     for f in os.listdir(CHARACTERS_DIR):
         if not f.endswith(".cfg"):
@@ -743,21 +772,24 @@ def get_used_names():
             logging.warning(f"USED_NAMES: Skipping unreadable character file {f}")
     return names
 
+
 def generate_unique_lore_name(gender="Neutral"):
     used = get_used_names()
-    
+
     gender_key = "Neutral"
-    if gender.lower() == "male": gender_key = "Male"
-    elif gender.lower() == "female": gender_key = "Female"
-    
+    if gender.lower() == "male":
+        gender_key = "Male"
+    elif gender.lower() == "female":
+        gender_key = "Female"
+
     # 2. Get pool
     pool = NAMES_CONFIG.get(gender_key, [])
     if not pool and gender_key != "Neutral":
         pool = NAMES_CONFIG.get("Neutral", [])
-    
+
     if not pool:
         pool = KENSHI_NAME_POOL
-    
+
     # 3. Select unique
     available = [n for n in pool if n.lower() not in used]
     if not available:
@@ -767,8 +799,9 @@ def generate_unique_lore_name(gender="Neutral"):
             if candidate.lower() not in used:
                 return candidate
         return f"{base}_{random.randint(1000, 9999)}"
-    
+
     return random.choice(available)
+
 
 def get_current_time_prefix():
     if PLAYER_CONTEXT:
@@ -778,46 +811,59 @@ def get_current_time_prefix():
         return f"[Day {day}, {hour:02d}:{minute:02d}] "
     return ""
 
+
 def generate_relation_bar(rel):
     """Generates a text-based visual representation of the NPC's relation to the player."""
     try:
         rel = int(rel)
     except:
         rel = 0
-    
+
     # Scale: -100 to 100
     # Normalize -100..100 to 0..20 dashes
     pos = int((rel + 100) / 10)
     pos = max(0, min(20, pos))
-    
+
     bar = list("---------------------")
-    bar[pos] = "X" # Marker
+    bar[pos] = "X"  # Marker
     bar_str = "".join(bar)
-    
+
     # Status Label
     label = "NEUTRAL"
-    if rel <= -90: label = "ARCH-ENEMY"
-    elif rel <= -60: label = "HOSTILE"
-    elif rel <= -25: label = "UNFRIENDLY"
-    elif rel >= 90: label = "SOUL-MATE"
-    elif rel >= 60: label = "ALLIED"
-    elif rel >= 25: label = "FRIENDLY"
-    
+    if rel <= -90:
+        label = "ARCH-ENEMY"
+    elif rel <= -60:
+        label = "HOSTILE"
+    elif rel <= -25:
+        label = "UNFRIENDLY"
+    elif rel >= 90:
+        label = "SOUL-MATE"
+    elif rel >= 60:
+        label = "ALLIED"
+    elif rel >= 25:
+        label = "FRIENDLY"
+
     # Add color tags for MyGUI (if supported, using # prefix)
     # Actually, let's keep it plain text for max compatibility across UI versions
     return f"RELATION: [{label}] [{bar_str}] ({rel:+} pts)"
 
+
 def is_future_timestamp(line, cur_d, cur_h, cur_m):
     """Checks if a string containing [Day X, HH:MM] is ahead of the provided current time."""
     match = re.search(r"\[Day (\d+)(?:, (\d+):(\d+))?\]", line)
-    if not match: return False
+    if not match:
+        return False
     d = int(match.group(1))
     h = int(match.group(2)) if match.group(2) else 0
     m = int(match.group(3)) if match.group(3) else 0
-    if d > cur_d: return True
-    if d < cur_d: return False
-    if h > cur_h: return True
-    if h < cur_h: return False
+    if d > cur_d:
+        return True
+    if d < cur_d:
+        return False
+    if h > cur_h:
+        return True
+    if h < cur_h:
+        return False
     return m > cur_m
 
 
@@ -832,6 +878,7 @@ LONG_TERM_MEM = {
     8: "SQUAD_LOST_TO_ME_ONCE", 14: "KILLED_MY_FRIEND", 15: "I_SCREWED_THIS_GUY"
 }
 
+
 def _clean_npc_name(name):
     if name is None:
         return ""
@@ -839,6 +886,7 @@ def _clean_npc_name(name):
     if '|' in clean:
         clean = clean.split('|', 1)[0].strip()
     return clean
+
 
 def _build_name_faction_id(name, faction=None):
     clean = _clean_npc_name(name)
@@ -848,6 +896,7 @@ def _build_name_faction_id(name, faction=None):
         if f_slug:
             return f"{clean}_{f_slug}"
     return clean
+
 
 def _is_strong_uid(value):
     """Identify stable, unique IDs vs generic/volatile ones."""
@@ -865,9 +914,10 @@ def _is_strong_uid(value):
     # e.g. "1-304443360-1-2050292992-1".
     if re.fullmatch(r"\d+(?:-\d+){4}", text):
         return True
-        
-    # Fallbacks 
+
+    # Fallbacks
     return ("-" in text and len(text.split("-")) >= 3) or (text.count('-') == 4 and all(part.isdigit() for part in text.split('-')))
+
 
 def _preferred_storage_id(name="", faction=None, *candidates, uid=None):
     clean_name = _clean_npc_name(name)
@@ -889,6 +939,7 @@ def _preferred_storage_id(name="", faction=None, *candidates, uid=None):
         return sid
 
     return derived
+
 
 def _normalize_context_identity(context, fallback_name=""):
     if not isinstance(context, dict):
@@ -929,6 +980,7 @@ def _normalize_context_identity(context, fallback_name=""):
         normalized["storage_id"] = storage_id
     return normalized
 
+
 def _normalized_faction_key(faction):
     if not faction:
         return ""
@@ -940,6 +992,7 @@ def _normalized_faction_key(faction):
         parts = text.split(":", 1)
         text = parts[1].strip() if len(parts) == 2 else text[len("player's squad"):].strip()
     return re.sub(r'\s+', ' ', text).strip().lower()
+
 
 def _context_identity_summary(context, fallback_name=""):
     ctx = _parse_context_dict(context, fallback_name=fallback_name)
@@ -980,6 +1033,7 @@ def _context_identity_summary(context, fallback_name=""):
         "context": ctx,
     }
 
+
 def _collect_target_candidates(clean_name, context=None, nearby_data=None):
     candidates = []
     seen = set()
@@ -1009,6 +1063,7 @@ def _collect_target_candidates(clean_name, context=None, nearby_data=None):
             _add_candidate("live", LIVE_CONTEXTS[live_key])
 
     return candidates
+
 
 def resolve_primary_target(raw_name, context=None, nearby_data=None, mode="talk"):
     clean_name = _clean_npc_name(raw_name)
@@ -1085,6 +1140,7 @@ def resolve_primary_target(raw_name, context=None, nearby_data=None, mode="talk"
 
     return clean_name, context, explicit_runtime_id, clean_name
 
+
 def _parse_context_dict(context, fallback_name=""):
     if not context:
         return {}
@@ -1099,10 +1155,12 @@ def _parse_context_dict(context, fallback_name=""):
             return {}
     return {}
 
+
 def _context_name(context, fallback_name=""):
     if not isinstance(context, dict):
         context = {}
     return _clean_npc_name(context.get("name") or context.get("Name") or fallback_name)
+
 
 def _context_faction(context):
     if not isinstance(context, dict):
@@ -1116,12 +1174,14 @@ def _context_faction(context):
         or ""
     ).strip()
 
+
 def _register_live_name(key, name):
     if not key or not name:
         return
     bucket = LIVE_NAME_INDEX.setdefault(name, [])
     if key not in bucket:
         bucket.append(key)
+
 
 def _unregister_live_aliases(key, ctx=None):
     target = ctx or LIVE_CONTEXTS.get(key) or {}
@@ -1133,7 +1193,8 @@ def _unregister_live_aliases(key, ctx=None):
         if not LIVE_NAME_INDEX[alias]:
             del LIVE_NAME_INDEX[alias]
 
-def resolve_live_context(name=None, context=None, explicit_id=None):
+
+def resolve_live_context(name="", context=None, explicit_id=None):
     ctx_dict = _parse_context_dict(context, fallback_name=name)
     clean_name = _context_name(ctx_dict, name)
     faction = _context_faction(ctx_dict)
@@ -1170,7 +1231,8 @@ def resolve_live_context(name=None, context=None, explicit_id=None):
 
     return None, None
 
-def store_live_context(context, name=None, explicit_id=None):
+
+def store_live_context(context, name="", explicit_id=None):
     global LAST_NPC_KEY, LAST_NPC_NAME
 
     ctx_dict = _parse_context_dict(context, fallback_name=name)
@@ -1230,6 +1292,7 @@ def store_live_context(context, name=None, explicit_id=None):
     LAST_NPC_NAME = clean_name or key
     return key, merged
 
+
 def clear_live_context_cache():
     global LAST_NPC_KEY, LAST_NPC_NAME, LAST_DIRECT_CHAT_KEY, LAST_DIRECT_CHAT_AT
     global ACTIVE_DIRECT_CHAT_COUNT, CHAT_PRIORITY_UNTIL
@@ -1248,6 +1311,7 @@ def clear_live_context_cache():
         CHAT_PRIORITY_UNTIL = 0.0
         DEFERRED_PROFILE_QUEUE.clear()
 
+
 def _ambient_identity_key(name=None, context=None, explicit_id=None):
     clean_name = _clean_npc_name(name)
     key, _ = resolve_live_context(name=clean_name, context=context, explicit_id=explicit_id)
@@ -1257,6 +1321,7 @@ def _ambient_identity_key(name=None, context=None, explicit_id=None):
         return f"{clean_name}|{explicit_id}"
     return clean_name
 
+
 def mark_recent_direct_chat(name, context=None, explicit_id=None):
     global LAST_DIRECT_CHAT_KEY, LAST_DIRECT_CHAT_AT
     key = _ambient_identity_key(name=name, context=context, explicit_id=explicit_id)
@@ -1265,6 +1330,7 @@ def mark_recent_direct_chat(name, context=None, explicit_id=None):
     with AMBIENT_LOCK:
         LAST_DIRECT_CHAT_KEY = key
         LAST_DIRECT_CHAT_AT = time.time()
+
 
 def ambient_candidate_allowed(name=None, context=None, explicit_id=None):
     key = _ambient_identity_key(name=name, context=context, explicit_id=explicit_id)
@@ -1281,6 +1347,7 @@ def ambient_candidate_allowed(name=None, context=None, explicit_id=None):
             return False
 
     return True
+
 
 def mark_ambient_speakers(names):
     now = time.time()
@@ -1308,11 +1375,13 @@ def mark_ambient_speakers(names):
             if key:
                 AMBIENT_SPEAKER_LAST_AT[key] = now
 
+
 def begin_direct_chat():
     global ACTIVE_DIRECT_CHAT_COUNT, CHAT_PRIORITY_UNTIL
     with PRIORITY_LOCK:
         ACTIVE_DIRECT_CHAT_COUNT += 1
         CHAT_PRIORITY_UNTIL = time.time() + DIRECT_CHAT_GRACE_SECONDS
+
 
 def end_direct_chat():
     global ACTIVE_DIRECT_CHAT_COUNT, CHAT_PRIORITY_UNTIL
@@ -1321,9 +1390,11 @@ def end_direct_chat():
             ACTIVE_DIRECT_CHAT_COUNT -= 1
         CHAT_PRIORITY_UNTIL = time.time() + DIRECT_CHAT_GRACE_SECONDS
 
+
 def direct_chat_active():
     with PRIORITY_LOCK:
         return ACTIVE_DIRECT_CHAT_COUNT > 0 or time.time() < CHAT_PRIORITY_UNTIL
+
 
 def defer_profile_batch(npc_list):
     if not npc_list:
@@ -1335,6 +1406,7 @@ def defer_profile_batch(npc_list):
                 DEFERRED_PROFILE_QUEUE[sid] = dict(npc)
         return len(DEFERRED_PROFILE_QUEUE)
 
+
 def drain_deferred_profile_queue():
     with PRIORITY_LOCK:
         if not DEFERRED_PROFILE_QUEUE:
@@ -1342,6 +1414,7 @@ def drain_deferred_profile_queue():
         queued = list(DEFERRED_PROFILE_QUEUE.values())
         DEFERRED_PROFILE_QUEUE.clear()
         return queued
+
 
 def _launch_batch_profile_generation(batch):
     if not batch:
@@ -1360,13 +1433,16 @@ def _launch_batch_profile_generation(batch):
     threading.Thread(target=_bg_generate, args=(batch,), daemon=True).start()
     return len(batch)
 
+
 def flush_deferred_profile_batches():
     if direct_chat_active():
         return 0
     return _launch_batch_profile_generation(drain_deferred_profile_queue())
 
+
 class _DirectChatLease:
     """Small route-scope guard so direct chat priority is always released on return/exception."""
+
     def __init__(self):
         self.active = False
 
@@ -1386,29 +1462,30 @@ class _DirectChatLease:
         except Exception:
             pass
 
+
 def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
     # Try to get live context for this specific NPC
     ctx = live_ctx
     if ctx is None:
         _, ctx = resolve_live_context(name=npc_name, context=char_data, explicit_id=(char_data or {}).get("ID") if char_data else None)
-    
+
     if not ctx:
         if not char_data:
             return ""
         # If no live context, fallback to persistent char_data
         ctx = char_data
-    
+
     lines = [f"CURRENT CONDITION of {npc_name}:"]
 
     # --- Character State (imprisoned / enslaved / escaped) ---
     char_state = ctx.get("character_state", "normal")
     is_incapacitated = ctx.get("is_incapacitated", False)
     state_labels = {
-        "imprisoned":     f"CRITICAL: {npc_name} is currently IMPRISONED. They are locked up and cannot move freely. They should speak with desperation, resignation, or defiance.",
-        "enslaved":       f"CRITICAL: {npc_name} is ENSLAVED and wearing shackles. They are bound to a master. They should speak with fear, exhaustion, or suppressed rage.",
-        "escaped-slave":  f"CRITICAL: {npc_name} is an ESCAPED SLAVE — no longer chained but hunted. They should be paranoid, guarded, and desperate.",
-        "unconscious":    f"CRITICAL: {npc_name} is UNCONSCIOUS and cannot speak.",
-        "dead":           f"CRITICAL: {npc_name} is DEAD.",
+        "imprisoned": f"CRITICAL: {npc_name} is currently IMPRISONED. They are locked up and cannot move freely. They should speak with desperation, resignation, or defiance.",
+        "enslaved": f"CRITICAL: {npc_name} is ENSLAVED and wearing shackles. They are bound to a master. They should speak with fear, exhaustion, or suppressed rage.",
+        "escaped-slave": f"CRITICAL: {npc_name} is an ESCAPED SLAVE — no longer chained but hunted. They should be paranoid, guarded, and desperate.",
+        "unconscious": f"CRITICAL: {npc_name} is UNCONSCIOUS and cannot speak.",
+        "dead": f"CRITICAL: {npc_name} is DEAD.",
     }
     if char_state in state_labels:
         lines.append(state_labels[char_state])
@@ -1424,12 +1501,12 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
     lines.append(f"- RACE: {race}")
     lines.append(f"- SEX: {gender}")
     lines.append(f"- FACTION: {faction}")
-    
+
     # Shopkeeper / Trader Status
     is_trader = ctx.get("is_trader", False)
     in_shop = ctx.get("in_shop", False)
     building_name = ctx.get("building_name", "Unknown")
-    
+
     if is_trader or in_shop or "shopkeeper" in job.lower():
         shop_note = f"ROLE: {npc_name} is a SHOPKEEPER/TRADER."
         if in_shop:
@@ -1445,7 +1522,7 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
             lines.append("SHOP STOCK (use these exact names in [ACTION: GIVE_ITEM: ...]):")
             for _item in _stock_items:
                 lines.append(f"  - {_item}")
-    
+
     # Leader Status
     if ctx.get("is_leader", False):
         lines.append(f"ROLE: {npc_name} is the LEADER of their faction. They speak with authority and make final decisions for their group.")
@@ -1464,30 +1541,34 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
         blood = med.get("blood", 100)
         hunger = med.get("hunger", 300)
         limbs = med.get("limbs", {})
-        
+
         status_parts = []
-        
+
         # Hunger Logic
-        if hunger < 100: status_parts.append("STARVING")
-        elif hunger < 250: status_parts.append("HUNGRY")
-        else: status_parts.append("WELL FED") 
-        
+        if hunger < 100:
+            status_parts.append("STARVING")
+        elif hunger < 250:
+            status_parts.append("HUNGRY")
+        else:
+            status_parts.append("WELL FED")
+
         # Health Logic
         max_blood = med.get("max_blood", 100)
         blood_pct = blood / max_blood if max_blood > 0 else 1.0
         blood_rate = med.get("blood_rate", 0.0)
-        
+
         if blood_rate > 0.01:
             status_parts.append("BLEEDING")
         elif blood_pct < 0.5:
             status_parts.append("WEAK FROM BLOODLOSS")
         elif blood_pct < 0.85:
             status_parts.append("INJURED")
-            
-        if med.get("is_unconscious"): status_parts.append("UNCONSCIOUS")
-        
+
+        if med.get("is_unconscious"):
+            status_parts.append("UNCONSCIOUS")
+
         lines.append(f"- CONDITION: {', '.join(status_parts) if status_parts else 'Healthy'}")
-        
+
         # Limb Logic
         injuries = []
         # Filter out _max keys for iteration
@@ -1496,26 +1577,29 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
             hp = limbs.get(limb, 100)
             hp_max = limbs.get(f"{limb}_max", 100)
             hp_pct = hp / hp_max if hp_max > 0 else 1.0
-            
-            if hp <= -hp_max: 
+
+            if hp <= -hp_max:
                 injuries.append(f"{limb.upper()} GONE/SEVERED")
-            elif hp < 0: 
+            elif hp < 0:
                 injuries.append(f"{limb.upper()} IS CRIPPLED")
-            elif hp_pct < 0.5: 
+            elif hp_pct < 0.5:
                 injuries.append(f"{limb.upper()} IS INJURED")
-            
-        if injuries: 
+
+        if injuries:
             lines.append(f"- INJURIES: {', '.join(injuries)}")
         else:
             lines.append("- INJURIES: None")
-    
+
     # Environment
     env = ctx.get("environment", {})
     if env:
         loc = []
-        if env.get("indoors"): loc.append("Indoors")
-        if env.get("in_town"): loc.append(f"In town ({env.get('town_name', 'Unknown')})")
-        if loc: lines.append(f"- LOCATION: {', '.join(loc)}")
+        if env.get("indoors"):
+            loc.append("Indoors")
+        if env.get("in_town"):
+            loc.append(f"In town ({env.get('town_name', 'Unknown')})")
+        if loc:
+            lines.append(f"- LOCATION: {', '.join(loc)}")
 
     # Stats & Skills (Visible Power)
     stats = ctx.get("stats", {})
@@ -1523,12 +1607,12 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
         lines.append(f"VISIBLE POWER of {npc_name}:")
         core = [f"{k[:3].upper()}: {int(float(stats.get(k, 0)))}" for k in ["strength", "dexterity", "toughness", "perception"]]
         lines.append(f"- ATTRIBUTES: {' | '.join(core)}")
-        
+
         notable = []
         combat_skills = ["melee_attack", "melee_defence", "dodge", "katanas", "sabres", "hackers", "heavy_weapons", "blunt", "polearms", "martial_arts", "crossbows", "turrets", "stealth", "athletics"]
         for s in combat_skills:
             val = int(float(stats.get(s, 0)))
-            if val > 15: # Only show competent skills
+            if val > 15:  # Only show competent skills
                 notable.append(f"{s.replace('_', ' ').capitalize()}: {val}")
         if notable:
             lines.append(f"- NOTABLE SKILLS: {', '.join(notable)}")
@@ -1537,29 +1621,31 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
     mem = ctx.get("memories", {})
     st = [SHORT_TERM_MEM.get(m, str(m)) for m in mem.get("short_term", [])]
     lt = [LONG_TERM_MEM.get(m, str(m)) for m in mem.get("long_term", [])]
-    
+
     if st or lt:
         lines.append(f"PERCEPTION OF PLAYER:")
-        if st: lines.append(f"- SHORT TERM: {', '.join(st)}")
-        if lt: lines.append(f"- HISTORY TAGS: {', '.join(lt)}")
-        
+        if st:
+            lines.append(f"- SHORT TERM: {', '.join(st)}")
+        if lt:
+            lines.append(f"- HISTORY TAGS: {', '.join(lt)}")
+
     # Inventory & Equipment (Categorized)
     inv = ctx.get("inventory", [])
     if inv:
         worn = [i for i in inv if i.get("equipped")]
         held = [i for i in inv if not i.get("equipped")]
-        
+
         if worn:
             lines.append(f"EQUIPMENT WORN by {npc_name}:")
             for item in worn:
                 lines.append(f"- {item['name']} (x{item.get('count', 1)}) [{item['slot'].upper()}]")
-        
+
         if held:
             lines.append(f"INVENTORY HELD by {npc_name}:")
             for item in held[:10]:
                 lines.append(f"- {item['name']} (x{item.get('count', 1)})")
             if len(held) > 10:
-                lines.append(f"- ... (and {len(held)-10} other items)")
+                lines.append(f"- ... (and {len(held) - 10} other items)")
     else:
         lines.append(f"INVENTORY: Empty")
 
@@ -1577,10 +1663,10 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
             p_fact_display = p_fact
             if p_fact == "Nameless" or p_fact == PLAYER_CONTEXT.get('faction', 'Nameless'):
                 p_fact_display = f"Player's Squad: {p_fact}"
-            
+
             p_health = p.get("health", "Healthy")
             p_equip = p.get("equipment", "")
-            
+
             p_desc = f"- {p_name} ({p_gender} {p_race}, {p_fact_display}) | Health: {p_health} | {dist_str}"
             if p_equip:
                 p_desc += f" | Visible Gear: {p_equip}"
@@ -1588,8 +1674,10 @@ def build_detailed_context_string(npc_name, char_data=None, live_ctx=None):
 
     return "\n".join(lines)
 
+
 # --- INITIALIZATION SEQUENCE ---
 load_configs()
+
 
 def _load_event_history_from_log():
     """Re-populate EVENT_HISTORY from the on-disk log so synthesis works after a server restart."""
@@ -1605,7 +1693,7 @@ def _load_event_history_from_log():
             for line in f:
                 line = line.strip()
                 # Lines are prefixed with timestamp, strip it: "[Day] [TYPE] ..."
-                bracket = line.find('][') 
+                bracket = line.find('][')
                 if bracket != -1:
                     line = line[bracket + 1:]  # drop the timestamp prefix
                 if line and line not in EVENT_HISTORY:
@@ -1614,6 +1702,7 @@ def _load_event_history_from_log():
     except Exception as e:
         logging.error(f"Failed to load event history: {e}")
 
+
 def init_server_state():
     global ACTIVE_CAMPAIGN, CURRENT_MODEL_KEY
     try:
@@ -1621,10 +1710,10 @@ def init_server_state():
         ACTIVE_CAMPAIGN = settings.get("current_campaign", "Default")
         CURRENT_MODEL_KEY = settings.get("current_model", "wizardlm-2")
         logging.info(f"INIT: Active Campaign: {ACTIVE_CAMPAIGN}, Model: {CURRENT_MODEL_KEY}")
-        
+
         # Rewrite the settings to the INI to ensure any missing default keys are populated
         persist_current_settings()
-        
+
         migrate_to_campaigns()
         load_campaign_config()
         # Load event history AFTER campaign is determined
@@ -1632,7 +1721,9 @@ def init_server_state():
     except Exception as e:
         logging.error(f"INIT: Critical state init failure: {e}")
 
+
 init_server_state()
+
 
 def load_prompt_component(filename, default_text=""):
     def _try_cached(path, source_label):
@@ -1662,9 +1753,11 @@ def load_prompt_component(filename, default_text=""):
         return result
     return default_text
 
+
 def format_player_status(player_ctx):
     """Summarizes player vitals and faction into a readable block."""
-    if not player_ctx: return "No status data."
+    if not player_ctx:
+        return "No status data."
     res = "PLAYER STATUS:\n"
     res += f"- Race: {player_ctx.get('race', 'Unknown')}\n"
     res += f"- Gender: {player_ctx.get('gender', 'male')}\n"
@@ -1676,28 +1769,34 @@ def format_player_status(player_ctx):
         blood_pct = blood / max_blood if max_blood > 0 else 1.0
         blood_rate = med.get("blood_rate", 0.0)
         status = []
-        if hunger < 80: status.append("STARVING")
-        elif hunger < 200: status.append("VERY HUNGRY")
-        elif hunger < 250: status.append("HUNGRY")
-        
-        if blood_rate > 0.01: 
+        if hunger < 80:
+            status.append("STARVING")
+        elif hunger < 200:
+            status.append("VERY HUNGRY")
+        elif hunger < 250:
+            status.append("HUNGRY")
+
+        if blood_rate > 0.01:
             status.append("BLEEDING")
-        elif blood_pct < 0.5: 
+        elif blood_pct < 0.5:
             status.append("CRITICAL BLOODLOSS")
-        elif blood_pct < 0.85: 
+        elif blood_pct < 0.85:
             status.append("INJURED")
-            
+
         res += f"- Condition: {', '.join(status) if status else 'Healthy/Fed'}\n"
     res += f"- Money: {player_ctx.get('money', 0)} cats\n"
     res += f"- Faction: {player_ctx.get('faction', 'Nameless')}\n"
     return res
 
+
 def format_player_inventory(player_ctx):
     """Categorizes player inventory into Visible vs Concealed for the LLM."""
-    if not player_ctx: return "No inventory data."
+    if not player_ctx:
+        return "No inventory data."
     inv = player_ctx.get("inventory", [])
-    if not inv: return "Inventory: Empty or not visible."
-    
+    if not inv:
+        return "Inventory: Empty or not visible."
+
     visible = []
     bag = []
     for item in inv:
@@ -1710,14 +1809,15 @@ def format_player_inventory(player_ctx):
             visible.append(f"{display} [{slot.upper()}]")
         else:
             bag.append(display)
-            
+
     res = "PLAYER EQUIPMENT & INVENTORY:\n"
     res += "VISIBLE (Worn/Held):\n" + ("\n".join([f"- {v}" for v in visible]) if visible else "- Nothing visible.") + "\n"
     res += "CONCEALED (In Bag/Pack):\n" + ("\n".join([f"- {b}" for b in bag[:5]]) if bag else "- Bag appears empty.")
     if len(bag) > 5:
-        res += f"\n- ... and {len(bag)-5} more items."
+        res += f"\n- ... and {len(bag) - 5} more items."
     return res
-    
+
+
 def fetch_dynamic_lore(npc_data=None, env_override=None):
     """Filters the in-memory LORE_DATABASE by NPC tags, groups by type, and returns
     labeled prompt sections with per-type character budgets."""
@@ -1760,7 +1860,7 @@ def fetch_dynamic_lore(npc_data=None, env_override=None):
                     search_terms.append("Soldier Drone")
             elif "skeleton" in _rl or "mechanical" in _rl or ("drone" in _rl and not _hive_ctx):
                 search_terms.append("Skeleton")
-                
+
         # Religion tag injects theology for the NPC's actual faith regardless of faction
         # e.g. a Narkoite wanderer in a secular faction still gets Okran/Narko lore
         religion = npc_data.get("Traits", {}).get("Religion", "")
@@ -1772,10 +1872,13 @@ def fetch_dynamic_lore(npc_data=None, env_override=None):
     env = env_override if env_override is not None else (PLAYER_CONTEXT.get("environment", {}) if PLAYER_CONTEXT else {})
 
     if isinstance(env, dict):
+        town_name = env.get("town_name")
+        if town_name:
+            search_terms.append(town_name)
 
-        if env.get("town_name"): search_terms.append(env.get("town_name"))
-
-        if env.get("biome"): search_terms.append(env.get("biome"))
+        biome = env.get("biome")
+        if biome:
+            search_terms.append(biome)
 
     # 3. Match chunks and bucket by type
     by_type = {t: [] for t in _LORE_TYPE_ORDER}
@@ -1805,7 +1908,6 @@ def fetch_dynamic_lore(npc_data=None, env_override=None):
     return "\n\n".join(sections)
 
 
-
 def build_events_block():
     """Build the world events/rumors block separately from the stable system prompt.
     Called per-request so NPCs always hear the latest news, but kept outside
@@ -1824,7 +1926,7 @@ def build_events_block():
                 with open(world_events_path, "r", encoding="utf-8") as f:
                     _RUMORS_CACHE = [l.strip() for l in f.readlines() if l.strip().startswith("- [")]
                 _RUMORS_CACHE_MTIME = mtime
-            events_list.extend(_RUMORS_CACHE[-max(1, ge_count//2):])
+            events_list.extend(_RUMORS_CACHE[-max(1, ge_count // 2):])
         except Exception as e:
             logging.warning(f"build_events_block: failed to read world_events.txt ({e})")
 
@@ -1846,7 +1948,7 @@ def build_system_prompt(player_name="Drifter", npc_data=None):
     world_lore = fetch_dynamic_lore(npc_data)
     rules = load_prompt_component("response_rules.txt", "Respond naturally to the player.")
     action_tags = load_prompt_component("prompt_action_tags.txt", "")
-    
+
     settings = load_settings()
 
     # Get player faction name (default to Nameless if missing)
@@ -1904,9 +2006,10 @@ RESPONSE FORMAT RULES:
     return prompt.strip()
 
 
-
 # --- WORLD REGISTRY (Save-Based Persistence) ---
 WORLD_INDEX = {}
+
+
 def update_world_index():
     global WORLD_INDEX
     try:
@@ -1915,28 +2018,34 @@ def update_world_index():
     except Exception as e:
         logging.error(f"Failed to update world index: {e}")
 
+
 # Initial scan
 update_world_index()
 
 # Requirement: "Character Initialization Attachment"
 # Fulfill by ensuring registry files exist for all known characters
+
+
 def populate_initial_registry():
     registry_dir = os.path.join(get_campaign_dir(), "sentient_sands_registry")
     if not os.path.exists(registry_dir):
         os.makedirs(registry_dir)
-    
+
     for name, platoons in WORLD_INDEX.items():
         clean_name = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
-        if not clean_name: continue
+        if not clean_name:
+            continue
         reg_file = os.path.join(registry_dir, f"{clean_name}_init.txt")
         if not os.path.exists(reg_file):
-             with open(reg_file, "w", encoding="utf-8") as f:
-                 f.write(f"Registry: {name} initialized. Location: {platoons[0]}\n")
+            with open(reg_file, "w", encoding="utf-8") as f:
+                f.write(f"Registry: {name} initialized. Location: {platoons[0]}\n")
+
 
 populate_initial_registry()
 
 # Characters directory is managed by load_campaign_config()
 # Do not re-assign here.
+
 
 def call_llm(messages, max_tokens=2048, temperature=0.8):
     global PLAYER2_SESSION_KEY
@@ -1977,7 +2086,7 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
         "top_p": 0.9,
         "repetition_penalty": 1.1,
     }
-    
+
     last_error = None
     for attempt in range(3):
         try:
@@ -1985,28 +2094,28 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
             start_time = time.time()
             response = requests.post(target_url, headers=headers, json=payload, timeout=120)
             elapsed = time.time() - start_time
-            
+
             if response.status_code == 200:
                 data = response.json()
                 choices = data.get('choices', [])
                 if not choices:
                     logging.warning(f"API Success but empty choices: {data}")
                     return None
-                    
+
                 msg_obj = choices[0].get('message', {})
                 content = msg_obj.get('content')
-                
+
                 # Check for alternative fields used by some providers (Thinking/Reasoning/Legacy)
                 if content is None:
                     # Try reasoning_content (DeepSeek/Thinking style)
                     content = msg_obj.get('reasoning_content')
-                
+
                 if content is None:
                     # Try legacy 'text' field just in case
                     content = choices[0].get('text')
 
-                logging.info(f"API Success in {elapsed:.1f}s (Attempt {attempt+1})")
-                
+                logging.info(f"API Success in {elapsed:.1f}s (Attempt {attempt + 1})")
+
                 if content is None:
                     logging.warning(f"API Success but no content found in message. Message body: {msg_obj}")
                     debug_logger.warning(f"EMPTY RESPONSE DETAIL: {data}")
@@ -2018,7 +2127,7 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
                 # Robust Reasoning Block Removal
                 if "</thought>" in content:
                     content = content.split("</thought>")[-1]
-                
+
                 # Strip XML-like thought tags if they remain
                 content = re.sub(r'<thought>.*?</thought>', '', content, flags=re.DOTALL | re.IGNORECASE)
                 content = re.sub(r'<thought>.*', '', content, flags=re.DOTALL | re.IGNORECASE)
@@ -2047,28 +2156,30 @@ def call_llm(messages, max_tokens=2048, temperature=0.8):
                             logging.info("Successfully refreshed Player2 token locally.")
                 except Exception as e:
                     logging.error(f"Failed to refresh Player2 token: {e}")
-                
-                logging.error(f"Attempt {attempt+1} failed after {elapsed:.1f}s: {last_error}")
+
+                logging.error(f"Attempt {attempt + 1} failed after {elapsed:.1f}s: {last_error}")
                 if attempt < 2:
                     time.sleep(1)
             else:
                 last_error = f"API ERROR {response.status_code}: {response.text[:200]}"
-                logging.error(f"Attempt {attempt+1} failed after {elapsed:.1f}s: {last_error}")
+                logging.error(f"Attempt {attempt + 1} failed after {elapsed:.1f}s: {last_error}")
                 if attempt < 2:
                     time.sleep(1)
 
         except Exception as e:
             last_error = str(e)
-            logging.error(f"Attempt {attempt+1} Exception: {e}")
-            debug_logger.error(f"LLM EXCEPTION STACK (Attempt {attempt+1}):\n{traceback.format_exc()}")
+            logging.error(f"Attempt {attempt + 1} Exception: {e}")
+            debug_logger.error(f"LLM EXCEPTION STACK (Attempt {attempt + 1}):\n{traceback.format_exc()}")
             if attempt < 2:
                 time.sleep(1)
-    
+
     return None
+
 
 # Load Canon Characters
 CANON_CHARACTERS_PATH = os.path.join(SCRIPT_DIR, "..", "config", "canon_characters.json")
 CANON_CHARACTERS = {}
+
 
 def load_canon_characters():
     global CANON_CHARACTERS
@@ -2082,9 +2193,11 @@ def load_canon_characters():
         except Exception as e:
             logging.error(f"Failed to load canon_characters.json: {e}")
 
+
 load_canon_characters()
 
-def generate_character_profile(name, context=""):
+
+def generate_character_profile(name, context: Union[str, dict] = ""):
     lower_name = name.lower()
     if "your squad" in lower_name or "squad" == lower_name:
         player_faction = PLAYER_CONTEXT.get('faction', 'Nameless')
@@ -2104,7 +2217,7 @@ def generate_character_profile(name, context=""):
     # Extract race/faction from request-local context or the live cache.
     _, live_ctx = resolve_live_context(name=name, context=context)
     live_ctx = live_ctx or {}
-    
+
     race = "Unknown"
     gender = "Unknown"
     faction = "Unknown"
@@ -2118,8 +2231,9 @@ def generate_character_profile(name, context=""):
     elif isinstance(context, str) and context.strip().startswith('{'):
         try:
             ctx_data = json.loads(context)
-        except: pass
-        
+        except:
+            pass
+
     if ctx_data:
         race = ctx_data.get('race', race)
         gender = ctx_data.get('gender', gender)
@@ -2128,27 +2242,30 @@ def generate_character_profile(name, context=""):
             faction = ctx_data.get('factionID', "Unknown")
         origin_faction = ctx_data.get('origin_faction', "Unknown")
         job = ctx_data.get('job', "None")
-    
+
     # Fallback to LIVE_CONTEXTS if still unknown
-    if race == "Unknown": race = live_ctx.get('race', 'Unknown')
-    if gender == "Unknown": gender = live_ctx.get('gender', 'Unknown')
-    if faction == "Unknown": 
+    if race == "Unknown":
+        race = live_ctx.get('race', 'Unknown')
+    if gender == "Unknown":
+        gender = live_ctx.get('gender', 'Unknown')
+    if faction == "Unknown":
         faction = live_ctx.get('faction', 'Unknown')
         if faction == "Unknown":
             faction = live_ctx.get('factionID', "Unknown")
-    
-    if origin_faction == "Unknown": origin_faction = live_ctx.get('origin_faction', 'Unknown')
-    if job == "None": job = live_ctx.get('job', 'None')
-    
+
+    if origin_faction == "Unknown":
+        origin_faction = live_ctx.get('origin_faction', 'Unknown')
+    if job == "None":
+        job = live_ctx.get('job', 'None')
+
     # RELAXED CONSTRAINTS: Only skip if we truly have nothing or the name is generic.
     # Modded factions often fail to report pretty names through standard hooks.
     if name in ("Unknown", "Someone", "Unknown Entity"):
         logging.info(f"Skipping profile: Name is {name}.")
         return None
 
-
     logging.info(f"Generating rich profile for {name} ({gender} {race}, Base Faction: {origin_faction}, Job: {job})...")
-    
+
     template = load_prompt_component("prompt_profile_generation.txt", """You are an expert on Kenshi lore.
 Task: Generate a character profile for the NPC named "{name}".
 SEX: {gender}
@@ -2168,13 +2285,13 @@ CRITICAL RULES:
     o_info = get_faction_info(origin_faction)
 
     prompt = template.format(name=name, gender=gender, race=race, faction=f_info, origin_faction=o_info, job=job, context=context)
-    
+
     # Apply language instruction for profile generation
     settings = load_settings()
     language = settings.get("language", "English")
     if language and language.lower() != "english":
         prompt += f"\nLANGUAGE: The JSON values ('Personality', 'Backstory', 'SpeechQuirks') MUST be written entirely in {language}. Do not use English.\n"
-    
+
     messages = [{"role": "user", "content": prompt}]
     response_text = call_llm(messages, max_tokens=1200, temperature=0.7)
 
@@ -2192,7 +2309,7 @@ CRITICAL RULES:
                 return result
         except Exception as e:
             logging.error(f"Failed to parse generated profile: {e}")
-            
+
     return {
         "Personality": "A weary wanderer.",
         "Backstory": "Trying to survive in the harsh desert.",
@@ -2205,10 +2322,12 @@ CRITICAL RULES:
         "Traits": generate_npc_traits(faction, race, origin_faction)
     }
 
+
 def generate_batch_profiles(npc_list):
     """Lump multiple NPC profile generations into a single LLM call."""
-    if not npc_list: return
-    
+    if not npc_list:
+        return
+
     # Filter out any NPCs that don't have all three required fields.
     # These will be deferred until we have full context from the game.
     complete = []
@@ -2226,7 +2345,7 @@ def generate_batch_profiles(npc_list):
     if not complete:
         logging.info("BATCH: No complete NPC data available, deferring all profiles.")
         return
-    
+
     logging.info(f"BATCH: Generating {len(complete)} profiles ({len(npc_list) - len(complete)} deferred)...")
 
     template = load_prompt_component("prompt_batch_profile_generation.txt", """You are an expert on Kenshi lore.
@@ -2251,8 +2370,8 @@ CRITICAL RULES:
     for _chunk_i in range(0, len(complete), _BATCH_CHUNK_SIZE):
         _chunk = complete[_chunk_i:_chunk_i + _BATCH_CHUNK_SIZE]
         _chunk_descs = "\n".join(
-            f"- Name: {n.get('name','Unknown')}, Sex: {n.get('gender','Unknown')}, "
-            f"Race: {n.get('race','Unknown')}, Faction: {get_faction_info(n.get('faction','Unknown'))}"
+            f"- Name: {n.get('name', 'Unknown')}, Sex: {n.get('gender', 'Unknown')}, "
+            f"Race: {n.get('race', 'Unknown')}, Faction: {get_faction_info(n.get('faction', 'Unknown'))}"
             for n in _chunk
         )
         _chunk_prompt = template.format(desc_str=_chunk_descs)
@@ -2345,6 +2464,7 @@ CRITICAL RULES:
         except Exception as e:
             logging.error(f"BATCH: Failed to parse batch profiles: {e}")
 
+
 def queue_batch_profile_generation(npc_list):
     """Queue profile generation in the background and mark IDs as in-progress up front."""
     if not npc_list:
@@ -2378,7 +2498,8 @@ def queue_batch_profile_generation(npc_list):
 
     return _launch_batch_profile_generation(queued)
 
-def get_character_data(name, context="", char_id=None, skip_generate=False):
+
+def get_character_data(name, context: Union[str, dict] = "", char_id=None, skip_generate=False):
     # CRITICAL: If the name contains a pipe (serial ID), split it to get the clean name.
     # This prevents "Name|ID" from creating unique "NameID" junk profiles.
     if '|' in name:
@@ -2396,13 +2517,13 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
     )
     _, live_ctx = resolve_live_context(name=name, context=ctx_data, explicit_id=live_explicit_id)
     live_ctx = live_ctx or {}
-    
+
     name = str(name).strip()
     _faction = (ctx_data.get("faction") or live_ctx.get("faction") or "").strip()
     persistent_id = str(ctx_data.get("persistent_id") or live_ctx.get("persistent_id") or "").strip() or None
     if not persistent_id and _is_strong_uid(char_id):
         persistent_id = str(char_id).strip()
-        
+
     base_sid = make_storage_id(name, _faction)
 
     # Prevent hive-mind generics when the in-game Renamer is disabled
@@ -2431,12 +2552,12 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                 with open(legacy_path, "r", encoding="utf-8") as handle:
                     legacy_data = json.load(handle)
                 legacy_data["ID"] = storage_id
-                
+
                 # Write to the new format
                 save_character_data(storage_id, legacy_data)
                 # Archive legacy JSON
                 os.rename(legacy_path, legacy_path + ".bak")
-                
+
                 old_safe = _safe_char_filename(legacy_sid)
                 new_safe = _safe_char_filename(storage_id)
                 with CACHE_LOCK:
@@ -2466,10 +2587,10 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                 # collision-corrupted file to the wrong NPC)
                 if make_storage_id(name, legacy_faction) == storage_id:
                     legacy_data["ID"] = storage_id  # Update stale ID field before rename
-                    
+
                     save_character_data(storage_id, legacy_data)
                     os.rename(legacy_path, legacy_path + ".bak")
-                    
+
                     _legacy_safe = _safe_char_filename(name)
                     _new_safe = _safe_char_filename(storage_id)
                     with CACHE_LOCK:
@@ -2499,10 +2620,10 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                         with open(old_space_path, "r", encoding="utf-8") as _sf:
                             space_data = json.load(_sf)
                         space_data["ID"] = storage_id
-                        
+
                         save_character_data(storage_id, space_data)
                         os.rename(old_space_path, old_space_path + ".bak")
-                        
+
                         old_space_safe = _safe_char_filename(old_space_sid)
                         _new_safe = _safe_char_filename(storage_id)
                         with CACHE_LOCK:
@@ -2520,21 +2641,23 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
 
     transient_existing = None
     data = load_existing_profile(storage_id)
-    
+
     # MIGRATION 3: We loaded legacy data from .json in load_existing_profile,
     # let's instantly save it to format it to CFG and TXT and rename the old file to .bak
     if data and os.path.exists(_legacy_character_path(storage_id)) and not os.path.exists(_character_path(storage_id)):
         lg_p = _legacy_character_path(storage_id)
         save_character_data(storage_id, data)
-        try: os.rename(lg_p, lg_p + ".bak")
-        except: pass
+        try:
+            os.rename(lg_p, lg_p + ".bak")
+        except:
+            pass
 
     if profile_needs_upgrade(data):
         transient_existing = data
         if skip_generate:
             return data
         data = None
-            
+
     # --- NEW CONTEXT BLOAT TRUNCATION ---
     # Instantly trims bloated legacy files the second they are loaded
     if data and "ConversationHistory" in data and len(data["ConversationHistory"]) > 45:
@@ -2549,13 +2672,20 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
 
     # Schema Migration for legacy files
     if data:
-        if "ConversationHistory" not in data: data["ConversationHistory"] = []
-        if "Relation" not in data: data["Relation"] = 0
-        if "Race" not in data: data["Race"] = "Unknown"
-        if "Sex" not in data: data["Sex"] = "Unknown"
-        if "Faction" not in data: data["Faction"] = "Unknown"
-        if "OriginFaction" not in data: data["OriginFaction"] = "Unknown"
-        if "Job" not in data: data["Job"] = "None"
+        if "ConversationHistory" not in data:
+            data["ConversationHistory"] = []
+        if "Relation" not in data:
+            data["Relation"] = 0
+        if "Race" not in data:
+            data["Race"] = "Unknown"
+        if "Sex" not in data:
+            data["Sex"] = "Unknown"
+        if "Faction" not in data:
+            data["Faction"] = "Unknown"
+        if "OriginFaction" not in data:
+            data["OriginFaction"] = "Unknown"
+        if "Job" not in data:
+            data["Job"] = "None"
         if "Traits" not in data:
             data["Traits"] = generate_npc_traits(
                 data.get("Faction", "Unknown"),
@@ -2571,17 +2701,17 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
                 current_sex = ctx_data.get("gender", "Unknown")
                 current_faction = ctx_data.get("faction", "Unknown")
                 needs_save = False
-                
+
                 if data.get("Race") == "Unknown" and current_race != "Unknown":
                     logging.info(f"Updating Race for {name}: {current_race}")
                     data["Race"] = current_race
                     needs_save = True
-                    
+
                 if data.get("Sex") in ("Unknown", None) and current_sex not in ("Unknown", None):
                     logging.info(f"Updating Sex for {name}: {current_sex}")
                     data["Sex"] = current_sex
                     needs_save = True
-                    
+
                 if data.get("Faction") == "Unknown" and current_faction != "Unknown":
                     logging.info(f"Updating Faction for {name}: {current_faction}")
                     data["Faction"] = current_faction
@@ -2609,8 +2739,8 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
     if not data:
         # If we are only pre-checking for batching or similar, do not generate now
         if skip_generate:
-             logging.debug(f"TRANS-PATH-1: {name} (skip_generate=True)")
-             return {
+            logging.debug(f"TRANS-PATH-1: {name} (skip_generate=True)")
+            return {
                 "ID": storage_id,
                 "Name": name,
                 "Race": ctx_data.get("race", "Unknown"),
@@ -2693,7 +2823,7 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
             with PROGRESS_LOCK:
                 if storage_id in PROFILES_IN_PROGRESS:
                     PROFILES_IN_PROGRESS.remove(storage_id)
-    
+
     # Enrich with world-index data (Persistence check)
     if name in WORLD_INDEX:
         data = {**data}  # shallow copy — avoids mutating the CHARACTER_CACHE reference
@@ -2706,23 +2836,24 @@ def get_character_data(name, context="", char_id=None, skip_generate=False):
         save_character_data(intrinsic_id, data)
     return data
 
+
 def should_save_profile(name, storage_id, data):
     """Checks if we should save this profile, preventing generic clutter."""
     if not name or name in ("Unknown", "Someone"):
         return False
-        
+
     personality = data.get("Personality", "").lower()
     is_generic_content = any(x in personality for x in ("unknown", "generic npc", "weary wanderer", "weary traveler"))
     has_history = len(data.get("ConversationHistory", [])) > 0
-    
+
     # Rule 1: Generic with no history? Don't save.
     if is_generic_content and not has_history:
         return False
-        
-                
+
     return True
 
-def load_existing_profile(storage_id, name=None):
+
+def load_existing_profile(storage_id, name=None) -> dict[str, Any]:
     """Load a profile from cache/disk without triggering generation."""
     with CACHE_LOCK:
         cached = CHARACTER_CACHE.get(storage_id)
@@ -2735,7 +2866,7 @@ def load_existing_profile(storage_id, name=None):
     cfg_path = _character_path(storage_id, name=name)
     legacy_path = _legacy_character_path(storage_id, name=name)
     history_path = _character_history_path(storage_id, name=name)
-    
+
     # Try name-based paths first, then fall back to plain ID paths if missing
     if not os.path.exists(cfg_path) and not os.path.exists(legacy_path):
         old_cfg_path = _character_path(storage_id)
@@ -2751,7 +2882,7 @@ def load_existing_profile(storage_id, name=None):
             suffix = hashlib.blake2s(str(storage_id).encode("utf-8"), digest_size=6).hexdigest()
             cfg_matches = [fn for fn in os.listdir(CHARACTERS_DIR) if fn.endswith(f"__{suffix}.cfg")]
             json_matches = [fn for fn in os.listdir(CHARACTERS_DIR) if fn.endswith(f"__{suffix}.json")]
-            
+
             if len(cfg_matches) == 1:
                 cfg_path = os.path.join(CHARACTERS_DIR, cfg_matches[0])
                 # Best effort to guess history path from config path stem
@@ -2761,11 +2892,11 @@ def load_existing_profile(storage_id, name=None):
             elif len(json_matches) == 1:
                 legacy_path = os.path.join(CHARACTERS_DIR, json_matches[0])
             elif cfg_matches or json_matches:
-                 logging.warning(
-                     f"load_existing_profile: ambiguous hash suffix for {storage_id} - skipping"
-                 )
-                 return None
-                 
+                logging.warning(
+                    f"load_existing_profile: ambiguous hash suffix for {storage_id} - skipping"
+                )
+                return {}
+
         if name and not os.path.exists(cfg_path) and not os.path.exists(legacy_path) and os.path.exists(CHARACTERS_DIR):
             # NEW FALLBACK: If recruiting shifted their faction (e.g. Nameless), the exact storage_id match drops.
             # We explicitly scan for their unmodified generated Name__ prefix to recover their original file.
@@ -2778,58 +2909,64 @@ def load_existing_profile(storage_id, name=None):
                 logging.info(f"IDENTITY: Recovered recruited character {name} via file string fuzzy match ({fuzzy_cfg[0]})")
             elif len(fuzzy_cfg) > 1:
                 logging.warning(f"IDENTITY: Ambiguous fallback file match for {name}: {fuzzy_cfg}. Continuing with new profile generation.")
-    
+
     data = None
     if os.path.exists(cfg_path):
         try:
             data = dack.load(cfg_path)
             if "Relation" in data:
-                try: data["Relation"] = int(data["Relation"])
-                except: pass
+                try:
+                    data["Relation"] = str(int(data["Relation"]))
+                except:
+                    pass
             if "Traits" in data and isinstance(data["Traits"], str):
                 import ast
-                try: data["Traits"] = ast.literal_eval(data["Traits"])
-                except: data["Traits"] = {}
+                try:
+                    data["Traits"] = ast.literal_eval(data["Traits"])
+                except:
+                    data["Traits"] = ""
         except Exception as e:
             logging.error(f"Error loading CFG {cfg_path}: {e}")
-            return None
+            return {}
     elif os.path.exists(legacy_path):
         try:
             with open(legacy_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
-            return None
-            
+            return {}
+
     if not data:
-        return None
-        
+        return {}
+
     if "ID" not in data:
         data["ID"] = storage_id
     elif data.get("ID") != storage_id:
         logging.debug(f"IDENTITY: Retaining intrinsic ID {data['ID']} over requested {storage_id}")
-    
+
     # Load history
     if "ConversationHistory" not in data:
         if os.path.exists(history_path):
             try:
                 with open(history_path, "r", encoding="utf-8") as f:
                     lines = [ln.strip() for ln in f.read().split('\n') if ln.strip()]
-                    data["ConversationHistory"] = lines
+                    data["ConversationHistory"] = str(lines)
             except Exception:
-                data["ConversationHistory"] = []
+                data["ConversationHistory"] = ""
         else:
-            data["ConversationHistory"] = []
+            data["ConversationHistory"] = ""
 
     return data
+
 
 def profile_needs_upgrade(data):
     """Return True when a saved profile is only a transient placeholder."""
     return bool(data and data.get("_transient"))
 
+
 def save_character_data(storage_id, data):
     cfg_path = _character_path(storage_id, name=data.get("Name") if data else None)
     history_path = _character_history_path(storage_id, name=data.get("Name") if data else None)
-    
+
     # Global safety truncation
     if data and "ConversationHistory" in data and len(data["ConversationHistory"]) > 45:
         data["ConversationHistory"] = data["ConversationHistory"][-45:]
@@ -2837,17 +2974,17 @@ def save_character_data(storage_id, data):
     try:
         # Separate ConversationHistory from static config
         history_list = data.pop("ConversationHistory", [])
-        
+
         # Save static config as CFG
         dack.save(data, cfg_path)
-        
+
         # Restore ConversationHistory to the python object so server logic still has it
         data["ConversationHistory"] = history_list
-        
+
         # Save history list as flat TXT
         with open(history_path, "w", encoding="utf-8") as f:
             f.write("\n".join(history_list))
-            
+
         # Only update cache after a successful disk write so RAM and disk stay in sync
         with CACHE_LOCK:
             CHARACTER_CACHE.pop(storage_id, None)  # Refresh insertion order
@@ -2855,16 +2992,18 @@ def save_character_data(storage_id, data):
             if len(CHARACTER_CACHE) > 200:
                 oldest = next(iter(CHARACTER_CACHE))
                 CHARACTER_CACHE.pop(oldest, None)
-                
+
         # Cleanup any stale duplicate files with out-of-date names
         _cleanup_stale_same_hash_files(storage_id, cfg_path, ext=".cfg")
-        _cleanup_stale_same_hash_files(storage_id, history_path, ext="_History.txt") # Handles history files too
-            
+        _cleanup_stale_same_hash_files(storage_id, history_path, ext="_History.txt")  # Handles history files too
+
     except Exception as e:
         logging.error(f"Error saving character {storage_id}: {e}")
 
+
 def extract_id_from_context(context_json):
-    if not context_json: return None
+    if not context_json:
+        return None
     try:
         context_json = _parse_context_dict(context_json)
         if isinstance(context_json, dict):
@@ -2882,6 +3021,7 @@ def extract_id_from_context(context_json):
         pass
     return None
 
+
 def make_storage_id(name, faction=None, context={}, runtime_id=""):
     """Build a collision-safe storage ID.
     With the transition to strict UUID tracking, this pipeline exclusively passes the native
@@ -2892,7 +3032,7 @@ def make_storage_id(name, faction=None, context={}, runtime_id=""):
         return uid
     if _is_strong_uid(runtime_id):
         return runtime_id
-        
+
     # Legacy fallback for backward compatibility (during mid-migration only)
     clean = str(name).strip()
     if '|' in clean:
@@ -2900,8 +3040,8 @@ def make_storage_id(name, faction=None, context={}, runtime_id=""):
     f = (faction or "").strip()
     if f and f not in ("Unknown", "None", "No Faction", ""):
         f_slug = re.sub(r'\s+', '_', re.sub(r'[^\w\s-]', '', f).strip())
-        if f_slug: 
-            n_slug = re.sub(r'\s+', '_', clean)  
+        if f_slug:
+            n_slug = re.sub(r'\s+', '_', clean)
             return f"{n_slug}_{f_slug}"
     return clean
 
@@ -2911,6 +3051,7 @@ def _safe_char_filename(storage_id):
     Matches the sanitization used by save_character_data().
     """
     return "".join([c for c in str(storage_id) if c.isalnum() or c in (' ', '_', '-')]).strip()
+
 
 def _cleanup_stale_same_hash_files(storage_id, canonical_path, ext=".cfg"):
     """Remove stale same-ID files with an outdated name prefix after a successful save."""
@@ -2932,13 +3073,14 @@ def _cleanup_stale_same_hash_files(storage_id, canonical_path, ext=".cfg"):
             else:
                 with open(stale_path, "r", encoding="utf-8") as stale_fh:
                     stale_data = json.load(stale_fh)
-                    
+
             if str(stale_data.get("ID", "")) != str(storage_id):
                 continue
             os.remove(stale_path)
             logging.debug(f"CLEANUP: removed stale {stale_name} (superseded by {canonical_name})")
         except Exception as e:
             logging.warning(f"CLEANUP: could not remove stale {stale_name}: {e}")
+
 
 def _legacy_character_path(storage_id, name=None):
     """Full path to a character's legacy JSON file."""
@@ -2949,6 +3091,7 @@ def _legacy_character_path(storage_id, name=None):
             return os.path.join(CHARACTERS_DIR, f"{name_slug}__{suffix}.json")
     return os.path.join(CHARACTERS_DIR, f"{_safe_char_filename(storage_id)}.json")
 
+
 def _character_path(storage_id, name=None):
     """Full path to a character's Dack CFG file in CHARACTERS_DIR."""
     if name:
@@ -2957,6 +3100,7 @@ def _character_path(storage_id, name=None):
             id_slug = _safe_char_filename(str(storage_id))
             return os.path.join(CHARACTERS_DIR, f"{name_slug}__{id_slug}.cfg")
     return os.path.join(CHARACTERS_DIR, f"{_safe_char_filename(storage_id)}.cfg")
+
 
 def _character_history_path(storage_id, name=None):
     """Full path to a character's history TXT file."""
@@ -2973,8 +3117,9 @@ def _character_history_path(storage_id, name=None):
 @app.route('/log', methods=['POST'])
 def log_dialogue():
     data = request.json
-    if not data: return jsonify({"status": "error"}), 400
-        
+    if not data:
+        return jsonify({"status": "error"}), 400
+
     npc_name = data.get('npc', 'Someone')
     player_name = data.get('player', 'Drifter')
     player_message = data.get('message', '')
@@ -2983,12 +3128,12 @@ def log_dialogue():
     npc_id = extract_id_from_context(context)
 
     char_data = get_character_data(npc_name, context, char_id=npc_id)
-    
+
     # CRITICAL FIX: Use the stable ID from char_data, NOT the volatile serial ID
     storage_id = char_data.get("ID") or npc_name
-    
+
     time_prefix = get_current_time_prefix()
-    
+
     if player_message:
         char_data["ConversationHistory"].append(f"{time_prefix}{player_name}: {player_message}")
         record_event_to_history("DIALOGUE", player_name, npc_name, player_message)
@@ -2996,7 +3141,7 @@ def log_dialogue():
     if npc_response:
         char_data["ConversationHistory"].append(f"{time_prefix}{npc_name}: {npc_response}")
         record_event_to_history("DIALOGUE", npc_name, player_name, npc_response)
-        
+
     if len(char_data["ConversationHistory"]) > 45:
         char_data["ConversationHistory"] = char_data["ConversationHistory"][-45:]
 
@@ -3005,18 +3150,20 @@ def log_dialogue():
     logging.info(f"LOG [{npc_name} ({storage_id})]: {npc_response}")
     return jsonify({"status": "ok"})
 
+
 @app.route('/get_unique_identity', methods=['POST'])
 def get_unique_identity():
     data = request.json
-    if not data: return jsonify({"status": "error"}), 400
-    
+    if not data:
+        return jsonify({"status": "error"}), 400
+
     current_name = data.get('name', 'Someone')
     race = data.get('race', 'Human')
     gender = data.get('gender', 'Neutral')
-    
+
     # Check if this name is generic
     is_generic = is_npc_name_generic(current_name)
-    
+
     if is_generic:
         new_name = generate_unique_lore_name(gender=gender)
         logging.info(f"IDENTITY: Assigning unique {gender} name '{new_name}' to generic NPC '{current_name}'")
@@ -3024,16 +3171,17 @@ def get_unique_identity():
             "status": "rename",
             "new_name": new_name
         })
-    
+
     return jsonify({"status": "ok", "name": current_name})
+
 
 @app.route('/get_batch_identities', methods=['POST'])
 def get_batch_identities():
-    batch = request.json # Expect list of {serial, name, gender, race}
+    batch = request.json  # Expect list of {serial, name, gender, race}
     if not batch or not isinstance(batch, list):
         return jsonify({"status": "error", "message": "Invalid batch format"}), 400
     enable_animal_renamer = load_settings().get("enable_animal_renamer", True)
-    
+
     results = []
     rename_count = 0
     for item in batch:
@@ -3042,9 +3190,9 @@ def get_batch_identities():
         current_name = str(item.get('name', 'Someone')).strip()
         gender = item.get('gender', 'Neutral')
         race = item.get('race', 'Unknown')
-        
+
         is_generic = is_npc_name_generic(current_name)
-        
+
         if is_generic:
             is_humanoid = False
             for hr in ["greenlander", "scorchlander", "shek", "skeleton", "hive", "human"]:
@@ -3070,7 +3218,7 @@ def get_batch_identities():
                 "serial": serial,
                 "status": "ok"
             })
-            
+
     if results:
         logging.info(f"IDENTITY: Batch processed {len(results)} items. Renamed: {rename_count}")
     return jsonify(results)
@@ -3079,17 +3227,18 @@ def get_batch_identities():
 @app.route('/rename', methods=['POST'])
 def rename_character():
     data = request.json
-    if not data: return jsonify({"status": "error"}), 400
-    
+    if not data:
+        return jsonify({"status": "error"}), 400
+
     old_name = data.get('old_name')
     new_name = data.get('new_name')
     context = data.get('context', '')
-    
+
     if not old_name or not new_name:
         return jsonify({"status": "error", "message": "Missing names"}), 400
-        
+
     logging.info(f"RENAME: Attempting to rename '{old_name}' to '{new_name}'")
-    
+
     # 1. Resolve existing profile (do not generate if missing)
     char_data = get_character_data(old_name, context, skip_generate=True)
     if char_data.get("_transient"):
@@ -3102,7 +3251,7 @@ def rename_character():
 
     # 2. Update internal Name
     char_data["Name"] = new_name
-    
+
     # 3. Handle File Renaming
     # Find the old file — try new Name__hash format first, fall back to legacy plain format.
     old_path = _character_path(old_id, name=old_name)
@@ -3121,30 +3270,40 @@ def rename_character():
     if os.path.exists(old_path) and not os.path.exists(new_path):
         try:
             char_data["ID"] = new_id
-            save_character_data(new_id, char_data) # Handles generating history txt and config cfg
-            
-            try: os.remove(old_path)
-            except: pass
-            
+            save_character_data(new_id, char_data)  # Handles generating history txt and config cfg
+
+            try:
+                os.remove(old_path)
+            except:
+                pass
+
             # The old history and legacy files
             old_hist_path = _character_history_path(old_id, name=old_name)
             if os.path.exists(old_hist_path):
-                try: os.remove(old_hist_path)
-                except: pass
+                try:
+                    os.remove(old_hist_path)
+                except:
+                    pass
             else:
                 old_hist_path2 = _character_history_path(old_id)
-                try: os.remove(old_hist_path2)
-                except: pass
-                
+                try:
+                    os.remove(old_hist_path2)
+                except:
+                    pass
+
             legacy_json = _legacy_character_path(old_id, name=old_name)
             if os.path.exists(legacy_json):
-                try: os.remove(legacy_json)
-                except: pass
+                try:
+                    os.remove(legacy_json)
+                except:
+                    pass
             else:
                 legacy_json2 = _legacy_character_path(old_id)
-                try: os.remove(legacy_json2)
-                except: pass
-                
+                try:
+                    os.remove(legacy_json2)
+                except:
+                    pass
+
             logging.info(f"RENAME: Migrated profile file {old_id} -> {new_id}")
             return jsonify({"status": "ok", "new_id": new_id})
         except Exception as e:
@@ -3156,17 +3315,19 @@ def rename_character():
     save_character_data(new_id, char_data)
     return jsonify({"status": "ok"})
 
+
 @app.route('/ambient', methods=['POST'])
 def ambient_event():
     debug_logger.debug("ROUTE: /ambient [POST]")
     data = request.json
-    if not data: return jsonify({"status": "error"}), 400
-    
+    if not data:
+        return jsonify({"status": "error"}), 400
+
     npcs_data = data.get('npcs', [])
     player_name = data.get('player', 'Drifter')
-    
+
     logging.info(f"RADIANT: Received ambient banter request ({len(npcs_data)} NPCs nearby)")
-    
+
     if not npcs_data:
         return jsonify({"status": "ignore"})
     if direct_chat_active():
@@ -3190,7 +3351,7 @@ def ambient_event():
             continue
         candidate_npcs.append(npc)
 
-    npc_limit = candidate_npcs[:12] # Small pool keeps ambient light and more varied
+    npc_limit = candidate_npcs[:12]  # Small pool keeps ambient light and more varied
     if len(npc_limit) < 2:
         logging.info("RADIANT: Skipping ambient - insufficient eligible speakers after cooldown filters.")
         return jsonify({"status": "ignore"})
@@ -3202,12 +3363,12 @@ def ambient_event():
             name = npc.get('name', 'Unknown')
             if name.lower() in CANON_CHARACTERS or "your squad" in name.lower():
                 continue
-            
+
             # Pre-check for missing profiles to batch generate (skip individual generation)
             info = get_character_data(name, context=json.dumps(npc), skip_generate=True)
             if info.get("_transient"):
                 missing_npcs.append(npc)
-                
+
     if missing_npcs:
         queue_batch_profile_generation(missing_npcs)
 
@@ -3275,7 +3436,7 @@ def ambient_event():
             unique_history.append(line)
             seen_history.add(line)
     unique_history = list(reversed(unique_history))[-80:]
-    
+
     history_block = ""
     if unique_history:
         history_block = "\nRECENT LOCAL DIALOGUE (DO NOT REPEAT TOPICS OR JOKES FROM HERE):\n" + "\n".join(unique_history)
@@ -3312,7 +3473,7 @@ INSTRUCTIONS:
 9. CRITICAL: Do NOT repeat topics, lines, or jokes found in the RECENT LOCAL DIALOGUE section. Talk about something new.
 10. WORLD-CENTRIC: Remember that in Kenshi, the player is NOT the center of the universe. NPCs have their own lives, problems, and social circles. They should speak to and about each other about what is going on around them more often than they speak about the player.
 """
-    
+
     messages = [
         {"role": "system", "content": ambient_system_prompt},
         {"role": "user", "content": "The world is quiet. Generate a radiant interaction."}
@@ -3322,20 +3483,21 @@ INSTRUCTIONS:
     if content:
         # Strip any stray [ACTION] tags that the LLM might hallucinated despite instructions
         content = re.sub(r'\[\s*[A-Z_]+(?::\s*[^\]]+)?\s*\]', '', content).strip()
-        
+
         # Basic cleaning - remove quotes
         content = content.replace('"', '').strip()
-        
+
         # Post-process to ensure IDs are present
         lines = []
         for line in content.split('\n'):
             line = line.strip()
-            if not line: continue
-            
+            if not line:
+                continue
+
             if ':' in line:
                 header, msg = line.split(':', 1)
                 name_part = header.split('|')[0].strip()
-                
+
                 # Hallucination check
                 if name_part.lower() == player_name.lower():
                     continue
@@ -3344,16 +3506,17 @@ INSTRUCTIONS:
                 if '|' not in header:
                     if name_part in name_to_id:
                         header = f"{name_part}|{name_to_id[name_part]}"
-                
+
                 lines.append(f"{header.strip()}: {msg.strip()}")
-            elif '|' in line and len(line) < 100: # Maybe just a name header LLM hallucinated
+            elif '|' in line and len(line) < 100:  # Maybe just a name header LLM hallucinated
                 continue
             else:
                 # Append raw text if no colon, though prompt asks for colon
-                if len(line) > 5: lines.append(line)
-        
+                if len(line) > 5:
+                    lines.append(line)
+
         final_text = "\n".join(lines)
-        
+
         # 5. Optimized History Update (One save per NPC)
         # Pre-load character memories for the nearby group (only those in npc_limit)
         memories = {}
@@ -3380,12 +3543,14 @@ INSTRUCTIONS:
 
         logging.info(f"AMBIENT BARK:\n{final_text}")
         return jsonify({"status": "ok", "text": final_text})
-    
+
     return jsonify({"status": "none"})
+
 
 @app.route('/ping', methods=['GET', 'POST'])
 def ping():
     return jsonify({"status": "ok"})
+
 
 @app.route('/test_llm', methods=['GET', 'POST'])
 def test_llm():
@@ -3404,6 +3569,7 @@ def test_llm():
         logging.error(f"TEST_LLM: Exception during test: {e}")
         return jsonify({"status": "error", "message": str(e)})
 
+
 @app.route('/lore_debug', methods=['GET', 'POST'])
 def lore_debug():
     """Debug endpoint: returns the lore sections that would be injected for a given NPC.
@@ -3416,13 +3582,13 @@ def lore_debug():
     data = request.get_json(silent=True) or {}
     # Build a synthetic npc_data from request params
     npc_data = {
-        "Faction":       data.get("faction", ""),
-        "Race":          data.get("race", ""),
+        "Faction": data.get("faction", ""),
+        "Race": data.get("race", ""),
         "SourcePlatoons": data.get("platoons", []),
-        "Traits":        {"Religion": data.get("religion", "")},
+        "Traits": {"Religion": data.get("religion", "")},
     }
     # Optionally inject location context without overwriting global PLAYER_CONTEXT
-    town  = data.get("town", "")
+    town = data.get("town", "")
     biome = data.get("biome", "")
 
     env_override = {"town_name": town, "biome": biome} if (town or biome) else None
@@ -3459,6 +3625,7 @@ def lore_debug():
         "lore_output": lore_output,
     })
 
+
 @app.route('/record_major_event', methods=['POST'])
 def record_major_event():
     """Append a major historical event to campaign_chronicle.json.
@@ -3468,10 +3635,10 @@ def record_major_event():
     logging.info("ROUTE: /record_major_event [POST]")
     data = request.json or {}
 
-    summary       = data.get("summary", "").strip()
+    summary = data.get("summary", "").strip()
     factions_full = data.get("factions_full", [])
-    radius        = data.get("radius", "")
-    location      = data.get("location", "").strip()
+    radius = data.get("radius", "")
+    location = data.get("location", "").strip()
 
     if not summary:
         return jsonify({"status": "error", "message": "Missing required field: summary"}), 400
@@ -3483,14 +3650,14 @@ def record_major_event():
         return jsonify({"status": "error", "message": "Missing required field: location"}), 400
 
     event = {
-        "summary":         summary,
-        "factions_full":   factions_full,
-        "radius":          radius,
-        "location":        location,
+        "summary": summary,
+        "factions_full": factions_full,
+        "radius": radius,
+        "location": location,
         "location_region": data.get("location_region", "").strip(),
-        "summary_vague":   data.get("summary_vague", "").strip(),
-        "tags":            data.get("tags", []),
-        "timestamp":       time.time(),
+        "summary_vague": data.get("summary_vague", "").strip(),
+        "tags": data.get("tags", []),
+        "timestamp": time.time(),
     }
     if "day" in data:
         try:
@@ -3517,9 +3684,9 @@ def regenerate_profile_route():
     POST body: {"sid": "<npc_storage_id>"}
     """
     logging.info("ROUTE: /regenerate_profile [POST]")
-    data = request.json or {}
+    data: dict[str, str] = request.json or {}
     sid = data.get("sid")
-    if not sid:
+    if not sid or sid == None:
         return jsonify({"status": "error", "message": "Missing NPC ID (sid)"}), 400
 
     # Resolve by storage ID first so Name__hash filenames can be found without
@@ -3539,11 +3706,11 @@ def regenerate_profile_route():
         return jsonify({"status": "error",
                         "message": "No conversation history. Talk to this NPC first."}), 400
 
-    name        = char_data.get("Name", sid)
-    race        = char_data.get("Race", "Unknown")
-    faction     = char_data.get("Faction", "Unknown")
+    name = char_data.get("Name", sid)
+    race = char_data.get("Race", "Unknown")
+    faction = char_data.get("Faction", "Unknown")
     personality = char_data.get("Personality", "Unknown")
-    backstory   = char_data.get("Backstory", "Unknown")
+    backstory = char_data.get("Backstory", "Unknown")
 
     # Cap history sent to LLM to avoid token overflow; full history stays in the file
     history_block = "\n".join(history[-80:])
@@ -3572,7 +3739,7 @@ Instructions:
     try:
         response_text = call_llm(
             [{"role": "system", "content": system_msg},
-             {"role": "user",   "content": user_msg}],
+             {"role": "user", "content": user_msg}],
             max_tokens=1500, temperature=0.7
         )
 
@@ -3586,8 +3753,8 @@ Instructions:
             return jsonify({"status": "error", "message": "LLM response was not valid JSON. Try again."}), 500
 
         # Update only the three narrative fields; Traits and all metadata are preserved
-        char_data["Personality"]  = result.get("Personality", personality)
-        char_data["Backstory"]    = result.get("Backstory", backstory)
+        char_data["Personality"] = result.get("Personality", personality)
+        char_data["Backstory"] = result.get("Backstory", backstory)
         char_data["SpeechQuirks"] = result.get("SpeechQuirks", char_data.get("SpeechQuirks", ""))
 
         save_character_data(sid, char_data)
@@ -3598,22 +3765,25 @@ Instructions:
         logging.error(f"REGEN: Failed for {sid}: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.route('/chat', methods=['POST'])
 def chat():
     global CURRENT_MODEL_KEY
     data = request.json
     debug_logger.debug(f"ROUTE: /chat [POST] (Request details omitted for security)")
-    if not data: return jsonify({"text": "Error: No JSON data provided"}), 400
-    
+    if not data:
+        return jsonify({"text": "Error: No JSON data provided"}), 400
+
     # Parse comma-separated NPC names and stabilize IDs
     raw_npc = data.get('npc', 'Someone')
     raw_npcs = data.get('npcs', [])
-    
+
     # Stabilize name-to-id mapping for resolution accuracy
     name_to_id = {}
-    
+
     def register(raw):
-        if not raw: return ""
+        if not raw:
+            return ""
         raw_str = str(raw).strip()
         clean = _clean_npc_name(raw_str)
         if not clean:
@@ -3623,11 +3793,11 @@ def chat():
 
     primary_npc = register(raw_npc)
     npcs = [register(n) for n in raw_npcs]
-    
+
     # Ensure primary_npc is logic-ready
     player_name = data.get('player', 'Drifter')
     mode = data.get('mode', 'talk')
-    
+
     # 3. Update LIVE_CONTEXTS from provided nearby data (ensures reactions work immediately)
     nearby = data.get('nearby', [])
     if nearby:
@@ -3669,21 +3839,21 @@ def chat():
                 store_live_context(live_payload, name=name, explicit_id=(runtime_id or stable_storage_id))
                 name_to_id[name] = f"{name}|{runtime_id}" if runtime_id else name
                 continue
-    
+
     # Filter player out of available NPCs to avoid hallucinated PC responses
     npcs = [n for n in npcs if n != player_name]
     if primary_npc == player_name and len(npcs) > 0:
         primary_npc = npcs[0]
-        
+
     player_message = data.get('message', '')
     direct_chat_lease = _DirectChatLease()
-    
+
     # --- TEST COMMAND INTERCEPT ---
     if player_message.startswith('/'):
         cmd_parts = player_message[1:].split(' ', 1)
         cmd = cmd_parts[0].lower()
         args = cmd_parts[1].strip() if len(cmd_parts) > 1 else ""
-        
+
         test_action = None
         if cmd == "help" or cmd == "commands":
             help_text = "[DEBUG] Available test commands:\n" + \
@@ -3692,28 +3862,49 @@ def chat():
                         "/notify [msg], /give_cats [n], /take_cats [n], /drop [item],\n" + \
                         "/take_item [item], /spawn [Templ|Name|Desc], /relations [Fact] [n], /task [TASK]"
             return jsonify({"text": help_text, "actions": []}), 200
-            
-        if cmd == "attack": test_action = "[ATTACK]"
-        elif cmd == "follow": test_action = "[ACTION: FOLLOW_PLAYER]"
-        elif cmd == "idle": test_action = "[ACTION: IDLE]"
-        elif cmd == "patrol": test_action = "[ACTION: PATROL_TOWN]"
-        elif cmd == "join": test_action = "[ACTION: JOIN_PARTY]"
-        elif cmd == "leave": test_action = "[ACTION: LEAVE]"
-        elif cmd == "free": test_action = "[ACTION: FREE_PLAYER]"
-        elif cmd == "breakout": test_action = "[ACTION: BREAKOUT_PLAYER]"
-        elif cmd == "move": test_action = "[ACTION: MOVE_ON_FREE_WILL]"
-        elif cmd == "movefast": test_action = "[ACTION: MOVE_ON_FREE_WILL_FAST]"
-        elif cmd == "home": test_action = "[ACTION: GO_HOMEBUILDING]"
-        elif cmd == "shop": test_action = "[ACTION: STAND_AT_SHOPKEEPER_NODE]"
-        elif cmd == "raid": test_action = f"[ACTION: RAID_TOWN: {args}]"
-        elif cmd == "travel": test_action = f"[ACTION: TRAVEL_TO_TARGET_TOWN: {args}]"
-        elif cmd == "medic": test_action = "[ACTION: JOB_MEDIC]"
-        elif cmd == "rescue": test_action = "[ACTION: FIND_AND_RESCUE]"
-        elif cmd == "repair": test_action = "[ACTION: JOB_REPAIR_ROBOT]"
-        elif cmd == "notify": test_action = f"[ACTION: NOTIFY: {args}]"
-        elif cmd == "give_cats": test_action = f"[ACTION: GIVE_CATS: {args}]"
-        elif cmd == "take_cats": test_action = f"[ACTION: TAKE_CATS: {args}]"
-        elif cmd == "take_item": test_action = f"[ACTION: TAKE_ITEM: {args}]"
+
+        if cmd == "attack":
+            test_action = "[ATTACK]"
+        elif cmd == "follow":
+            test_action = "[ACTION: FOLLOW_PLAYER]"
+        elif cmd == "idle":
+            test_action = "[ACTION: IDLE]"
+        elif cmd == "patrol":
+            test_action = "[ACTION: PATROL_TOWN]"
+        elif cmd == "join":
+            test_action = "[ACTION: JOIN_PARTY]"
+        elif cmd == "leave":
+            test_action = "[ACTION: LEAVE]"
+        elif cmd == "free":
+            test_action = "[ACTION: FREE_PLAYER]"
+        elif cmd == "breakout":
+            test_action = "[ACTION: BREAKOUT_PLAYER]"
+        elif cmd == "move":
+            test_action = "[ACTION: MOVE_ON_FREE_WILL]"
+        elif cmd == "movefast":
+            test_action = "[ACTION: MOVE_ON_FREE_WILL_FAST]"
+        elif cmd == "home":
+            test_action = "[ACTION: GO_HOMEBUILDING]"
+        elif cmd == "shop":
+            test_action = "[ACTION: STAND_AT_SHOPKEEPER_NODE]"
+        elif cmd == "raid":
+            test_action = f"[ACTION: RAID_TOWN: {args}]"
+        elif cmd == "travel":
+            test_action = f"[ACTION: TRAVEL_TO_TARGET_TOWN: {args}]"
+        elif cmd == "medic":
+            test_action = "[ACTION: JOB_MEDIC]"
+        elif cmd == "rescue":
+            test_action = "[ACTION: FIND_AND_RESCUE]"
+        elif cmd == "repair":
+            test_action = "[ACTION: JOB_REPAIR_ROBOT]"
+        elif cmd == "notify":
+            test_action = f"[ACTION: NOTIFY: {args}]"
+        elif cmd == "give_cats":
+            test_action = f"[ACTION: GIVE_CATS: {args}]"
+        elif cmd == "take_cats":
+            test_action = f"[ACTION: TAKE_CATS: {args}]"
+        elif cmd == "take_item":
+            test_action = f"[ACTION: TAKE_ITEM: {args}]"
         elif cmd == "take":
             inv = PLAYER_CONTEXT.get("inventory", [])
             if inv:
@@ -3721,39 +3912,42 @@ def chat():
                 test_action = f"[ACTION: TAKE_ITEM: {item_name}]"
             else:
                 return jsonify({"text": "[DEBUG] Error: Player inventory is empty or unknown. Call /context to refresh.", "actions": []}), 200
-        elif cmd == "drop": test_action = f"[ACTION: DROP_ITEM: {args}]"
-        elif cmd == "spawn": test_action = f"[ACTION: SPAWN_ITEM: {args}]"
+        elif cmd == "drop":
+            test_action = f"[ACTION: DROP_ITEM: {args}]"
+        elif cmd == "spawn":
+            test_action = f"[ACTION: SPAWN_ITEM: {args}]"
         elif cmd == "relations":
             rparts = args.rsplit(' ', 1)
             if len(rparts) == 2:
                 test_action = f"[ACTION: FACTION_RELATIONS: {rparts[0].strip()}: {rparts[1].strip()}]"
-        elif cmd == "task": test_action = f"[TASK: {args.upper()}]"
-        
+        elif cmd == "task":
+            test_action = f"[TASK: {args.upper()}]"
+
         if test_action:
             logging.info(f"TEST COMMAND: {cmd} -> {test_action}")
             return jsonify({
                 "text": f"[DEBUG] Executing test command: {test_action}",
                 "actions": [test_action]
             }), 200
-            
+
     event = data.get('event')
-    
+
     # Ignore internal events that aren't chat prompts
     if event == "selection_clear":
         return jsonify({"status": "ignored"}), 200
-        
+
     # Prevent unprompted generation if no message is provided (unless it's an ambient event)
     if not player_message and event != "ambient_flavor":
         direct_chat_lease.release()
         return jsonify({"text": "...", "actions": []}), 200
-    
+
     # Handle Ambient Flavor (NPC to NPC chat)
     is_ambient = event == "ambient_flavor"
     if is_ambient:
         player_message = "[AMBIENT CONVERSATION TRIGGERED]"
     else:
         direct_chat_lease.begin()
-        
+
     context = data.get('context', '')
     primary_ref = name_to_id.get(primary_npc, primary_npc)
     if primary_npc and not is_ambient:
@@ -3793,10 +3987,10 @@ def chat():
                 primary_ctx_dict = dict(ctx_dict)  # shallow copy after enrichment
         except Exception as e:
             logging.error(f"Error registering primary context: {e}")
-    
+
     # radii
     whisper_radius, talk_radius, yell_radius = get_config_radii()
-    
+
     npcs_in_radius = []
     # USE THE ROOT NEARBY LIST FOR ACCURATE PROXIMITY DETECTION
     nearby_data = data.get('nearby', [])
@@ -3845,22 +4039,24 @@ def chat():
         # Check if they are in radius based on communication mode
         if mode == "whisper":
             # Whisper is one-on-one, no one eavesdrops in this mode now
-            continue 
+            continue
         elif mode == "talk":
-            if dist <= talk_radius: npcs_in_radius.append(name)
+            if dist <= talk_radius:
+                npcs_in_radius.append(name)
         elif mode == "yell":
-            if dist <= yell_radius: npcs_in_radius.append(name)
+            if dist <= yell_radius:
+                npcs_in_radius.append(name)
 
     # 4. History Update (Overhearing)
-    
+
     def get_local_context_and_id(target_name):
         # Clean target_name for comparison
         clean_target = _clean_npc_name(target_name)
         target_id = target_name.split('|', 1)[1].strip() if '|' in target_name else None
-        
+
         if clean_target == primary_npc and (not target_id or str(target_id) == str(primary_id)):
             return context, primary_id
-            
+
         # Check current request's nearby data first (highest accuracy)
         nearby_data = data.get('nearby', [])
         for n in nearby_data:
@@ -3882,7 +4078,7 @@ def chat():
                 or cached_ctx.get("storage_id")
                 or cached_ctx.get("id")
             )
-                
+
         return "", None
 
     # Determine listeners (everyone in radius)
@@ -3891,7 +4087,8 @@ def chat():
     listeners = []
     for l in raw_listeners:
         clean_l = _clean_npc_name(l)
-        if clean_l not in listeners: listeners.append(clean_l)
+        if clean_l not in listeners:
+            listeners.append(clean_l)
 
     # 5. Determine who the LLM actually responds as
     if mode == 'yell':
@@ -3918,7 +4115,7 @@ def chat():
         ctx_dict = _parse_context_dict(npc_ctx)
         _, live_ctx = resolve_live_context(name=name, context=ctx_dict, explicit_id=sid)
         live_ctx = live_ctx or {}
-        
+
         # Collision-safe storage ID: name+faction so two same-named NPCs don't share a file
         storage_id = (
             ctx_dict.get("storage_id")
@@ -3926,9 +4123,10 @@ def chat():
             or make_storage_id(name, ctx_dict.get("faction") or live_ctx.get("faction", ""))
         )
 
-        if storage_id in checked_ids: continue
+        if storage_id in checked_ids:
+            continue
         checked_ids.add(storage_id)
-        
+
         path = _character_path(storage_id)
         existing_profile = load_existing_profile(storage_id)
         needs_profile = (not os.path.exists(path)) or profile_needs_upgrade(existing_profile)
@@ -3951,7 +4149,7 @@ def chat():
                 }
             else:
                 ctx_dict["storage_id"] = storage_id
-                
+
             missing_for_batch.append(ctx_dict)
 
     if missing_for_batch:
@@ -3959,6 +4157,7 @@ def chat():
 
     char_datas = {}
     threads = []
+
     def fetch_npc_thread(name, cid, delay):
         if delay > 0:
             time.sleep(delay)
@@ -3977,7 +4176,7 @@ def chat():
         ctx_dict = _parse_context_dict(npc_context)
         _, live_ctx = resolve_live_context(name=name, context=ctx_dict, explicit_id=effective_id)
         live_ctx = live_ctx or {}
-        
+
         # Collision-safe storage ID for delay-check
         storage_id = (
             ctx_dict.get("storage_id")
@@ -3992,11 +4191,11 @@ def chat():
         if (not os.path.exists(path)) or profile_needs_upgrade(existing_profile):
             delay = delay_counter
             delay_counter += 1
-            
+
         t = threading.Thread(target=fetch_npc_thread, args=(name, cid, delay), daemon=True)
         t.start()
         threads.append(t)
-        
+
     for t in threads:
         t.join()
 
@@ -4013,14 +4212,14 @@ def chat():
                 "ConversationHistory": [],
                 "_transient": True,
             }
-    
+
     # TALK mode now allows fall-through to prompt only the primary NPC
     # while others overheard via history updates above.
 
     logging.info(f"Prompting LLM for {mode} communication with {primary_npc} (Total participants: {len(npcs)})...")
     # Context building similar to Fallout 2 mod...
     primary_data = char_datas[primary_npc]
-    
+
     # Simple history append for now — keep as list so the overflow guard can trim it
     history_lines = list(primary_data["ConversationHistory"][-100:])
     history_str = "\n".join(history_lines)
@@ -4079,7 +4278,7 @@ def chat():
         final_instruction = f"Respond as {primary_npc} (the animal). Provide a single, BRIEF action description or sound in asterisks (e.g. *Growls*, *Tilts head*, *Nuzzles hand*). DO NOT USE WORDS OR SPEECH. Keep it under 6 words."
     else:
         dynamic_system_prompt = build_system_prompt(player_name, primary_data)
-        
+
         if mode == 'yell':
             volume_status = "The player is addressing everyone nearby at a clear, projected volume."
             yell_instruction = f"\nCRITICAL: {volume_status} This can be heard by everyone nearby ({', '.join(npcs)}). This is a public address or talking to a crowd; it is NOT yelling or shouting aggressively. DO NOT tell the player to quiet down or react with annoyance to the volume. You SHOULD respond as multiple characters from the list to create a realistic crowd reaction. Every speaker MUST be on a new line started with 'Name: ' (e.g., 'Beep: Hey!').\nACTION TAGS IN CROWD MODE: If a character decides to take an action (attack, flee, join, etc.), place the [ACTION: TAG] at the END of THAT CHARACTER'S OWN LINE, not at the end of the whole response. Example: 'Hobbs: I'm with you! [ACTION: JOIN_PARTY]'\nCRITICAL JOIN RULE: If any character says they will follow, join, come along, or is 'in' (e.g. 'Count me in', 'I'll come', 'Lead the way', 'I'm with you'), that character's line MUST end with [ACTION: JOIN_PARTY]. Saying it in words WITHOUT the tag has NO game effect."
@@ -4093,16 +4292,16 @@ def chat():
 
             # Transition reinforcement: inform LLM they stopped the public address
             if "[ACTION: ADDRESSES GROUP]" in history_str:
-                 volume_status += " They have STOPPED addressing the group and are now speaking at a calm, normal volume."
-                 
+                volume_status += " They have STOPPED addressing the group and are now speaking at a calm, normal volume."
+
             talk_instruction = f"\nINFO: {volume_status} Respond naturally. This is a standard, polite conversation. You are calm and composed. DO NOT tell the player to quiet down, do NOT react with annoyance to their volume, and do NOT mention noise or shouting unless they are actually being aggressive."
-            
+
             # Relation Judgment (Direct talk only)
             if not is_ambient:
                 talk_instruction += "\nJUDGMENT: At the end of your response, you MUST judge the player's tone and the quality of this interaction on a scale of -5 (extremely aggressive/hostile/insulting) to 5 (extremely friendly/helpful/respectful). 0 is neutral. Format this judgment as a tag like [JUDGMENT: n] at the very end."
-                
+
             dynamic_system_prompt += talk_instruction
-        
+
         # If the player is talking to multiple people (Yell or Group Talk), adjust the instructions
         if len(npcs) > 1 and mode == 'yell':
             group_instruction = f"\nCONTEXT: You are facilitating a group conversation. YOU SHOULD RESPOND AS SEVERAL DIFFERENT CHARACTERS to create a lively atmosphere. Each speaker MUST use the format: 'Name: Dialogue'."
@@ -4116,7 +4315,7 @@ def chat():
 
     # Limit response length to discourage rambling
     final_instruction += " Keep it immersive, short, and grounded in the world of Kenshi. Response should be 1-3 sentences maximum."
-    
+
     template = load_prompt_component("prompt_chat_template.txt", """[SYSTEM CORE]
 {system_prompt}
 
@@ -4130,7 +4329,7 @@ def chat():
 {final_instruction}
 You MUST write your final response exclusively in {language_str}.
 """)
-    
+
     settings = load_settings()
     user_lang = settings.get("language", "English")
 
@@ -4154,10 +4353,10 @@ You MUST write your final response exclusively in {language_str}.
     # LM Studio context: 16384 tokens. 15000 cap leaves headroom for output + buffer.
     # Kenshi prompts run ~3.5 chars/token (structured text, brackets, short words).
     # Use chars * 2 // 7 (≈ ÷ 3.5) to estimate tokens conservatively.
-    _CONTEXT_LIMIT   = 11000
+    _CONTEXT_LIMIT = 11000
     _MAX_DIAL_TOKENS = 150   # max output tokens for one NPC line
     _USER_MSG_BUFFER = 250    # tokens for the player message + timestamp
-    _PROMPT_BUDGET   = _CONTEXT_LIMIT - _MAX_DIAL_TOKENS - _USER_MSG_BUFFER  # 14600
+    _PROMPT_BUDGET = _CONTEXT_LIMIT - _MAX_DIAL_TOKENS - _USER_MSG_BUFFER  # 14600
 
     def _est_tokens(text):
         return len(text) * 2 // 7  # ≈ chars ÷ 3.5
@@ -4186,12 +4385,13 @@ You MUST write your final response exclusively in {language_str}.
         DEBUG_LOG = os.path.join(KENSHI_SERVER_DIR, "logs", "llm_debug.log")
         try:
             with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-                f.write(f"\n{'='*50}\n")
+                f.write(f"\n{'=' * 50}\n")
                 f.write(f"TIMESTAMP: {time.ctime()}\n")
                 f.write(f"REQUEST FOR: {primary_npc} [GUARD FIRED - PROMPT TOO LARGE]\n")
                 f.write(f"EST. TOKENS: ~{est_tokens} | BUDGET: {_PROMPT_BUDGET}\n")
-                f.write(f"{'='*50}\n")
-        except: pass
+                f.write(f"{'=' * 50}\n")
+        except:
+            pass
         return jsonify({"text": "...", "actions": []}), 200
 
     # Tag the player message with mode for history clarity
@@ -4216,33 +4416,36 @@ You MUST write your final response exclusively in {language_str}.
     DEBUG_LOG = os.path.join(KENSHI_SERVER_DIR, "logs", "llm_debug.log")
     try:
         with open(DEBUG_LOG, "a", encoding="utf-8") as f:
-            f.write(f"\n{'='*50}\n")
+            f.write(f"\n{'=' * 50}\n")
             f.write(f"TIMESTAMP: {time.ctime()}\n")
             f.write(f"REQUEST FOR: {primary_npc} (Mode: {mode})\n")
             f.write(f"EST. TOKENS: ~{_est_tokens(rich_prompt)}\n")
             f.write(f"PROMPT:\n{rich_prompt}\n")
             f.write(f"USER MESSAGE: {player_message}\n")
-            f.write(f"{'-'*30}\n")
-    except: pass
+            f.write(f"{'-' * 30}\n")
+    except:
+        pass
 
     logging.info(f"Calling main chat LLM...")
     content = call_llm(messages, max_tokens=_MAX_DIAL_TOKENS)
-    
+
     # Debug Logging: Log the response
     if content:
         try:
             with open(DEBUG_LOG, "a", encoding="utf-8") as f:
                 f.write(f"RAW LLM RESPONSE:\n{content}\n")
-                f.write(f"{'='*50}\n")
-        except: pass
+                f.write(f"{'=' * 50}\n")
+        except:
+            pass
     else:
         logging.error("LLM returned None for chat response.")
         try:
             with open(DEBUG_LOG, "a", encoding="utf-8") as f:
                 f.write(f"LLM RESPONSE FAILED (None)\n")
-                f.write(f"{'='*50}\n")
-        except: pass
-    
+                f.write(f"{'=' * 50}\n")
+        except:
+            pass
+
     if content:
         # 0a. Normalize "Name: Speaker\nDialogue" → "Speaker: Dialogue" for yell mode.
         # Some models emit a header line instead of the inline "Speaker: text" format.
@@ -4274,12 +4477,13 @@ You MUST write your final response exclusively in {language_str}.
         # 0. Per-speaker action parsing (for YELL/Group mode)
         # We must do this BEFORE global cleaning removes the tags.
         per_speaker_actions = []
-        speaker_judgments = {} # speaker -> val
+        speaker_judgments = {}  # speaker -> val
         if mode == 'yell':
             raw_lines = content.split('\n')
             for rline in raw_lines:
                 rline = rline.strip()
-                if not rline: continue
+                if not rline:
+                    continue
                 if rline.lower().startswith("name:"):
                     rline = rline[5:].strip()
                     if not rline:
@@ -4304,7 +4508,8 @@ You MUST write your final response exclusively in {language_str}.
                                 try:
                                     val = int(j_match.group(0))
                                     speaker_judgments[speaker] = max(-5, min(5, val))
-                                except: pass
+                                except:
+                                    pass
 
                     # Yell recruitment safeguard: inject JOIN_PARTY if speaker agreed without tag
                     if not _has_join:
@@ -4328,22 +4533,22 @@ You MUST write your final response exclusively in {language_str}.
 
         # Use a very generous regex to find anything that looks like a tag
         all_bracketed = re.findall(r'\[\s*[^\]]+\s*\]', content)
-        
+
         actions = []
         global_judgment = 0
-        
+
         # Mapping of common sloppy keywords to formal C++ tags
         formal_map = {
-            "GIVE_CATS": "GIVE_CATS", "TAKE_CATS": "TAKE_CATS", 
+            "GIVE_CATS": "GIVE_CATS", "TAKE_CATS": "TAKE_CATS",
             "GIVE_ITEM": "GIVE_ITEM", "TAKE_ITEM": "TAKE_ITEM",
             "DROP_ITEM": "DROP_ITEM", "SPAWN_ITEM": "SPAWN_ITEM",
             "JOIN_PARTY": "JOIN_PARTY", "LEAVE": "LEAVE",
-            "IDLE": "IDLE", "PATROL_TOWN": "PATROL_TOWN", 
+            "IDLE": "IDLE", "PATROL_TOWN": "PATROL_TOWN",
             "RELEASE_PLAYER": "RELEASE_PLAYER", "FREE_PLAYER": "FREE_PLAYER",
             "NOTIFY": "NOTIFY", "FACTION_RELATIONS": "FACTION_RELATIONS",
             "ATTACK_TOWN": "ATTACK_TOWN", "TRAVEL_TO_TARGET_TOWN": "TRAVEL_TO_TARGET_TOWN",
             "RAID_TOWN": "RAID_TOWN", "ATTACK": "ATTACK",
-            "RELEASE_PRISONER": "RELEASE_PRISONER", 
+            "RELEASE_PRISONER": "RELEASE_PRISONER",
             "BREAKOUT_PRISONER": "BREAKOUT_PRISONER", "BREAKOUT_PLAYER": "BREAKOUT_PLAYER",
             "JOB_MEDIC": "JOB_MEDIC", "JOB_REPAIR_ROBOT": "JOB_REPAIR_ROBOT",
             "FIND_AND_RESCUE": "FIND_AND_RESCUE", "JUDGMENT": "JUDGMENT"
@@ -4357,14 +4562,15 @@ You MUST write your final response exclusively in {language_str}.
             while True:
                 prev = clean
                 clean = re.sub(r'^(ACTION|TASK|TAG):\s*', '', clean, flags=re.IGNORECASE).strip()
-                if clean == prev: break
-            
+                if clean == prev:
+                    break
+
             # 2. Extract Keyword and Args
             if ":" in clean:
                 parts = clean.split(":", 1)
                 kw = parts[0].strip().upper()
                 args = parts[1].strip()
-                
+
                 # Recursive keyword fix: Handle [ACTION: TAKE_CATS: TAKE_CATS: TAKE_CATS: 40]
                 while args.upper().startswith(kw):
                     args = re.sub(rf'^{re.escape(kw)}\s*:?\s*', '', args, flags=re.IGNORECASE).strip()
@@ -4377,10 +4583,11 @@ You MUST write your final response exclusively in {language_str}.
                 j_val = args or re.search(r'-?\d+', kw)
                 if j_val:
                     try:
-                        j_str = j_val.group(0) if hasattr(j_val, 'group') else str(j_val)
+                        j_str = j_val.group(0) if isinstance(j_val, re.Match) else str(j_val)
                         global_judgment = max(-5, min(5, int(j_str)))
                         logging.info(f"RELATION: Interaction judged as {global_judgment}")
-                    except: pass
+                    except:
+                        pass
                 continue  # JUDGMENT is server-side only; sending it to the DLL breaks bubble display
 
             # 4. Handle Actions/Tasks
@@ -4390,7 +4597,7 @@ You MUST write your final response exclusively in {language_str}.
                 if formal == kw or (formal in kw and len(kw) < len(formal) + 3):
                     matched_ka = formal_map[formal]
                     break
-            
+
             if matched_ka:
                 # Strip quantity suffixes from GIVE_ITEM/TAKE_ITEM args (e.g. "Skeleton Leg x4" -> "Skeleton Leg")
                 if matched_ka in ("GIVE_ITEM", "TAKE_ITEM", "DROP_ITEM"):
@@ -4417,11 +4624,12 @@ You MUST write your final response exclusively in {language_str}.
                         final_tag = f"[ACTION: LEAVE: {origin_faction}]" if origin_faction != "Unknown" else "[ACTION: LEAVE]"
                     else:
                         final_tag = f"[ACTION: {matched_ka}{f': {args}' if args else ''}]"
-                
+
                 # Check for redundant task assigned in consecutive turns
                 if "TASK:" in final_tag:
-                     last_hist = primary_data["ConversationHistory"][-1] if primary_data["ConversationHistory"] else ""
-                     if final_tag in last_hist: continue
+                    last_hist = primary_data["ConversationHistory"][-1] if primary_data["ConversationHistory"] else ""
+                    if final_tag in last_hist:
+                        continue
 
                 # GIVE_ITEM inventory check: if item not in NPC's live inventory, fall back to SPAWN_ITEM.
                 # For shopkeepers, always use SPAWN_ITEM — ACT_GIVE_ITEM searches the NPC's personal
@@ -4449,20 +4657,23 @@ You MUST write your final response exclusively in {language_str}.
         if not is_ambient:
             # Aggregate all participants who judged
             judges = speaker_judgments if speaker_judgments else {primary_npc: global_judgment}
-            
+
             for judge_name, j_val in judges.items():
-                if j_val == 0: continue
-                
+                if j_val == 0:
+                    continue
+
                 # Get data for this speaker (must have been loaded in char_datas)
                 j_data = char_datas.get(judge_name)
-                if not j_data: 
+                if not j_data:
                     # If it's a yell participant we didn't fully load, skip
                     continue
 
                 current_rel = j_data.get("Relation", 0)
-                try: current_rel = int(current_rel)
-                except: current_rel = 0
-                
+                try:
+                    current_rel = int(current_rel)
+                except:
+                    current_rel = 0
+
                 new_rel = max(-100, min(100, current_rel + j_val))
                 if new_rel != current_rel:
                     j_data["Relation"] = new_rel
@@ -4470,11 +4681,15 @@ You MUST write your final response exclusively in {language_str}.
 
                 # Faction relation impact (Only for significant judgments)
                 f_delta = 0
-                if j_val >= 5: f_delta = 2
-                elif j_val >= 4: f_delta = 1
-                elif j_val <= -5: f_delta = -2
-                elif j_val <= -4: f_delta = -1
-                
+                if j_val >= 5:
+                    f_delta = 2
+                elif j_val >= 4:
+                    f_delta = 1
+                elif j_val <= -5:
+                    f_delta = -2
+                elif j_val <= -4:
+                    f_delta = -1
+
                 if f_delta != 0:
                     npc_f = j_data.get("Faction", "None")
                     if npc_f and npc_f not in ["None", "Nameless", "No Faction"]:
@@ -4554,13 +4769,14 @@ You MUST write your final response exclusively in {language_str}.
 
         # Advanced Cleaning
         content = content.replace('"', '').strip()
-        
+
         # Split into lines and filter out thoughts/meta-text
         lines = content.split('\n')
         filtered_lines = []
         for line in lines:
             line = line.strip()
-            if not line: continue
+            if not line:
+                continue
 
             # Filter lines that leak prompt context back into the response
             if re.search(r'\[(?:Visible Gear|SHOP STOCK|Inventory Held)', line, re.IGNORECASE):
@@ -4568,7 +4784,8 @@ You MUST write your final response exclusively in {language_str}.
 
             # Re-apply tag removal to individual lines just in case
             line = re.sub(r'\[\s*[^\]]+\s*\]', '', line).strip()
-            if not line: continue
+            if not line:
+                continue
 
             # If in YELL mode, look for "Name: Response" format to split bubbles
             is_group_response = (mode == 'yell')
@@ -4592,21 +4809,21 @@ You MUST write your final response exclusively in {language_str}.
                     else:
                         logging.info(f"Hallucination Filter: Discarded LLM attempt to speak as {player_name}")
                         continue
-            
+
             # Skip common non-dialogue prefixes/meta-talk and hallucinated log lines
             lower_line = line.lower()
             if any(lower_line.startswith(prefix) for prefix in [
-                "thought:", "thinking:", "observation:", "note:", "(thinking", 
-                "*", "as an ai", "i cannot", "here is", "raw llm response:", 
+                "thought:", "thinking:", "observation:", "note:", "(thinking",
+                "*", "as an ai", "i cannot", "here is", "raw llm response:",
                 "timestamp:", "request for:", "prompt:", "user message:",
                 "history:", "character:", "personality:", "backstory:", "current condition"
             ]):
                 continue
-            
+
             # Skip separator lines
             if line.startswith('=') or line.startswith('-') or len(set(line)) <= 2:
                 continue
-                
+
             # Remove "CHARACTER_NAME: " prefixes ONLY if NOT in multi/squad mode
             if len(npcs) <= 1:
                 # Hallucination Filter: If talking to ONE person, ensure they don't speak as the player or someone else
@@ -4643,7 +4860,7 @@ You MUST write your final response exclusively in {language_str}.
 
             if line:
                 filtered_lines.append(line)
-        
+
         # Join lines - newlines represent separate bubbles in multi-NPC mode
         if filtered_lines:
             if mode != 'yell':
@@ -4674,7 +4891,7 @@ You MUST write your final response exclusively in {language_str}.
                 content = "\n".join(kept_lines) if kept_lines else "..."
         elif len(content) > _MAX_SINGLE_RESPONSE_CHARS:
             content = content[:_MAX_SINGLE_RESPONSE_CHARS - 3] + "..."
-        
+
         # Log initial player prompt to global history once
         player_faction = PLAYER_CONTEXT.get("faction", "None")
         primary_faction = char_datas.get(primary_npc, {}).get("Faction", "None")
@@ -4684,14 +4901,14 @@ You MUST write your final response exclusively in {language_str}.
         for name in listeners:
             is_overhearing = name not in npcs
             overheard_tag = "(Overheard) " if is_overhearing else ""
-            
+
             if name not in char_datas:
                 # Need to fetch for overhearers who weren't participants
                 ctx, sid = get_local_context_and_id(name)
                 char_datas[name] = get_character_data(name, ctx, char_id=sid, skip_generate=True)
-                
+
             char_datas[name]["ConversationHistory"].append(f"{time_prefix}{overheard_tag}{player_name}{mode_action}: {player_message}")
-            
+
             # If multiple lines/speakers, append them all to history
             if "\n" in content:
                 _content_lines = [l.strip() for l in content.split('\n') if l.strip()]
@@ -4731,13 +4948,13 @@ You MUST write your final response exclusively in {language_str}.
                     _spk, _rest = history_line.split(':', 1)
                     history_line = f"{_spk.split('|')[0].strip()}: {_rest.strip()}"
                 if ':' not in history_line:
-                     history_line = f"{primary_npc}: {history_line}"
-                
+                    history_line = f"{primary_npc}: {history_line}"
+
                 history_entry = f"{time_prefix}{overheard_tag}{history_line}"
                 if actions:
                     history_entry += f" {' '.join(actions)}"
                 char_datas[name]["ConversationHistory"].append(history_entry)
-                
+
                 primary_faction = char_datas.get(primary_npc, {}).get("Faction", "None")
                 player_faction = PLAYER_CONTEXT.get("faction", "None")
                 record_event_to_history("CHAT", primary_npc, player_name, content, actor_faction=primary_faction, target_faction=player_faction)
@@ -4745,7 +4962,7 @@ You MUST write your final response exclusively in {language_str}.
             # Limit history to 45 lines (matches save_character_data and get_character_data caps)
             if len(char_datas[name]["ConversationHistory"]) > 45:
                 char_datas[name]["ConversationHistory"] = char_datas[name]["ConversationHistory"][-45:]
-                
+
             storage_id = char_datas[name].get("ID", name)
             # Relaxed transient check: if they have history, allow save even if technically transient
             has_history = len(char_datas[name].get("ConversationHistory", [])) > 0
@@ -4801,21 +5018,22 @@ You MUST write your final response exclusively in {language_str}.
 def record_event_to_history(etype, actor, target, msg, actor_faction="None", target_faction="None"):
     """Centralized helper to record events for both the log and narrative synthesis."""
     global EVENT_HISTORY, EVENT_HISTORY_SET, GLOBAL_EVENT_COUNTER, EVENT_THROTTLE, LAST_STATE_LOG
-    if not msg: return
-    
+    if not msg:
+        return
+
     # Format: [TYPE] Actor (Faction) -> Target (Faction) @ Location: Message
     p_fact = PLAYER_CONTEXT.get('faction', 'Nameless')
     a_fact_display = actor_faction
     if actor_faction == "Nameless" or actor_faction == p_fact:
         a_fact_display = f"Player's Squad: {p_fact}"
-        
+
     t_fact_display = target_faction
     if target_faction == "Nameless" or target_faction == p_fact:
         t_fact_display = f"Player's Squad: {p_fact}"
 
     actor_part = f"{actor} ({a_fact_display})" if a_fact_display and a_fact_display != "None" else actor
     target_part = f"{target} ({t_fact_display})" if t_fact_display and t_fact_display != "None" else target
-    
+
     # Include location from player context if available
     location = ""
     if PLAYER_CONTEXT:
@@ -4823,11 +5041,11 @@ def record_event_to_history(etype, actor, target, msg, actor_faction="None", tar
         town = env.get("town_name", "") if isinstance(env, dict) else ""
         if town:
             location = f" @ {town}"
-    
+
     time_str = get_current_time_prefix().strip()
     prefix = f"{time_str} " if time_str else ""
     evt_str = f"{prefix}[{etype}] {actor_part} -> {target_part}{location}: {msg}"
-    
+
     # --- STATE SUPPRESSION ---
     # For repetitive state hooks (knockout, recovery, etc), only log if the status actually CHANGES.
     state_key = f"{target_part}|{etype}"
@@ -4836,7 +5054,8 @@ def record_event_to_history(etype, actor, target, msg, actor_faction="None", tar
             return  # Message is identical to last recorded state, skip
         LAST_STATE_LOG[state_key] = msg
         # Cleanup if it gets massive
-        if len(LAST_STATE_LOG) > 2000: LAST_STATE_LOG.clear()
+        if len(LAST_STATE_LOG) > 2000:
+            LAST_STATE_LOG.clear()
 
     # --- THROTTLE CHECK ---
     # Cooldown for non-stateful rapid repeats
@@ -4858,10 +5077,11 @@ def record_event_to_history(etype, actor, target, msg, actor_faction="None", tar
     try:
         cdir = get_campaign_dir()
         log_dir = os.path.join(cdir, "logs")
-        if not os.path.exists(log_dir): os.makedirs(log_dir)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         with open(os.path.join(log_dir, "global_events.log"), "a", encoding="utf-8") as f:
             f.write(f"{evt_str}\n")
-            
+
         # Also copy to server.log so it shows up in both tabs if relevant
         logging.info(f"EVENT: {evt_str}")
     except Exception as e:
@@ -4882,6 +5102,7 @@ def record_event_to_history(etype, actor, target, msg, actor_faction="None", tar
             del EVENT_HISTORY[:-500]
             EVENT_HISTORY_SET = set(EVENT_HISTORY)
 
+
 def generate_global_narrative_thread():
     """Synthesizes the last 100 events into a global rumor for NPCs to overhear."""
     global EVENT_HISTORY
@@ -4890,7 +5111,7 @@ def generate_global_narrative_thread():
     if len(EVENT_HISTORY) < min_needed:
         logging.warning(f"NARRATIVE: Not enough events to synthesize (have {len(EVENT_HISTORY)}, need {min_needed}).")
         return None
-    
+
     settings = load_settings()
 
     # Cap at 75 events to keep synthesis prompt under ~2K tokens (was 250, caused ~10K token prompts).
@@ -4901,6 +5122,9 @@ def generate_global_narrative_thread():
     # Turns ~75 verbose lines into ~10-15 summary lines, covering more days of history
     # in the same token budget → richer, more varied rumours.
     if _HAVE_COMPRESSOR:
+        assert _sge_parse != None
+        assert _sge_compress != None
+        assert _sge_reduce != None
         try:
             raw_text = "\n".join(last_chunk)
             events = _sge_parse(raw_text)
@@ -4936,10 +5160,10 @@ def generate_global_narrative_thread():
     for loc, evts in grouped_events.items():
         events_text += f"\n--- {loc.upper()} ---\n"
         events_text += "\n".join(evts) + "\n"
-    
+
     logging.info(f"NARRATIVE: Grouped {len(last_chunk)} events into {len(grouped_events)} locations.")
     # logging.debug(f"NARRATIVE GROUPING:\n{events_text}")
-    
+
     # Load existing rumors to prevent repeats
     past_rumors_block = ""
     world_events_path = os.path.join(get_campaign_dir(), "world_events.txt")
@@ -4948,18 +5172,18 @@ def generate_global_narrative_thread():
             with open(world_events_path, "r", encoding="utf-8") as f:
                 # Find the actual [RUMOR: ...] text in the last few lines
                 rumor_lines = []
-                for line in f.readlines()[-20:]: # Scan last 20 lines
+                for line in f.readlines()[-20:]:  # Scan last 20 lines
                     match = re.search(r'\[RUMOR:\s*(.*?)\]', line)
                     if match:
                         rumor_lines.append(f"- {match.group(1).strip()}")
-                
+
                 if rumor_lines:
                     past_rumors_block = "\nPREVIOUS RUMORS (Do NOT repeat these):\n" + "\n".join(rumor_lines[-5:])
         except Exception as e:
             logging.warning(f"NARRATIVE: Failed to read past rumors from world_events.txt ({e})")
 
     p_fact = PLAYER_CONTEXT.get("faction", "The Nameless")
-    
+
     template = load_prompt_component("prompt_world_synthesis.txt", """[KENSHI WORLD SYNERGY]
 The following is a log of recent interactions in the world of Kenshi, grouped by location.
 Your task is to synthesize these events into a single, high-impact 'Global Rumor'.
@@ -4991,10 +5215,10 @@ INSTRUCTIONS:
         {"role": "system", "content": prompt},
         {"role": "user", "content": "Synthesize the rumors of the borderlands."}
     ]
-    
+
     logging.info("NARRATIVE: Calling LLM to synthesize world events...")
     rumor_text = call_llm(messages, max_tokens=150)
-    
+
     if rumor_text:
         # Strip any accidental tags the LLM might still output
         rumor_text = rumor_text.strip()
@@ -5004,7 +5228,7 @@ INSTRUCTIONS:
             rumor_text = tag_match.group(1).strip()
         # Remove any leading dashes or bullets
         rumor_text = re.sub(r'^[-•*]\s*', '', rumor_text).strip()
-        
+
         if len(rumor_text) > 10:
             time_prefix = get_current_time_prefix().strip()
             rumor_tagged = f"- {time_prefix} [RUMOR: {rumor_text}]"
@@ -5025,6 +5249,7 @@ INSTRUCTIONS:
             except Exception as e:
                 logging.error(f"Error saving global event rumor: {e}")
     return None
+
 
 @app.route('/synthesize', methods=['POST'])
 def manual_synthesize():
@@ -5084,10 +5309,10 @@ def events_content():
     """
     data = request.json or {}
     line_id = data.get("day", "")
-    
+
     # Only use campaign-specific events
     world_events_path = os.path.join(get_campaign_dir(), "world_events.txt")
-        
+
     try:
         line_num = int(line_id) - 1  # id is 1-indexed line number
         with open(world_events_path, "r", encoding="utf-8") as f:
@@ -5113,17 +5338,19 @@ def events_content():
         logging.error(f"events/content error: {e}")
     return jsonify({"status": "error", "text": "Entry not found."}), 404
 
+
 @app.route('/context', methods=['POST'])
 def update_context():
     global PLAYER_CONTEXT, LAST_NPC_NAME
     data = request.json
-    if not data: return jsonify({"status": "error"}), 400
-    
+    if not data:
+        return jsonify({"status": "error"}), 400
+
     # Process and deduplicate world events
     # SKIP processing if the game is paused or at speed 0 to prevent loops
     is_paused = data.get("is_paused", False)
     game_speed = data.get("gamespeed", 1.0)
-    
+
     if not is_paused and game_speed > 0.05:
         new_events = data.get("events", [])
         for e in new_events:
@@ -5144,7 +5371,7 @@ def update_context():
         prev_paused = PLAYER_CONTEXT.get("is_paused")
         PLAYER_CONTEXT = data
         if prev_paused != data.get("is_paused"):
-             logging.info(f"CONTEXT: Player pause state changed to {data.get('is_paused')} (Speed: {data.get('gamespeed')})")
+            logging.info(f"CONTEXT: Player pause state changed to {data.get('is_paused')} (Speed: {data.get('gamespeed')})")
     else:
         name = data.get("name")
         if name:
@@ -5174,7 +5401,7 @@ def get_context():
     elif LIVE_CONTEXTS:
         last_npc_id = list(LIVE_CONTEXTS.keys())[-1]
         last_npc = LIVE_CONTEXTS[last_npc_id]
-    
+
     # Use the global tracking for synthesis
     elapsed = SYNTHESIS_STATUS.get("elapsed", 0)
     interval = SYNTHESIS_STATUS.get("interval", 60)
@@ -5190,6 +5417,7 @@ def get_context():
         }
     })
 
+
 @app.route('/rename', methods=['POST'])
 def rename_endpoint():
     data = request.json or {}
@@ -5204,14 +5432,15 @@ def rename_endpoint():
     if not target_id:
         target_id = context.get("persistent_id") or context.get("id") or old_name
 
-    cdata, file_path = get_character_data(target_id, context, check_only=False)
+    cdata, file_path = get_character_data(target_id, context, skip_generate=False)
     if cdata:
         cdata["Name"] = new_name
         dack.save(file_path, cdata)
         logging.info(f"RENAME: Updated identity for '{old_name}' -> '{new_name}' in {file_path}")
         return jsonify({"status": "ok", "new_name": new_name})
-    
+
     return jsonify({"status": "error", "message": "Character data not found"}), 404
+
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings_endpoint():
@@ -5236,21 +5465,22 @@ def settings_endpoint():
         settings = load_settings()
         r, t, y = get_config_radii()
         campaigns = [d for d in os.listdir(CAMPAIGNS_DIR) if os.path.isdir(os.path.join(CAMPAIGNS_DIR, d))] if os.path.exists(CAMPAIGNS_DIR) else []
-        
+
         # Grouped map for dropdowns: Provider -> [Models]
         mbp = {}
         for k, v in MODELS_CONFIG.items():
             p = v.get("provider", "unknown")
-            if p not in mbp: mbp[p] = []
+            if p not in mbp:
+                mbp[p] = []
             mbp[p].append(k)
-        
+
         # Determine current provider
         curr_prov = MODELS_CONFIG.get(CURRENT_MODEL_KEY, {}).get("provider", "unknown")
 
         return jsonify({
             "status": "ok",
             "models": mbp,        # C++ dropdowns loop uses this
-            "all_models": MODELS_CONFIG, # C++ initialization lookup
+            "all_models": MODELS_CONFIG,  # C++ initialization lookup
             "providers": list(PROVIDERS_CONFIG.keys()),
             "current": CURRENT_MODEL_KEY,
             "current_provider": curr_prov,
@@ -5310,7 +5540,8 @@ def settings_endpoint():
             changes["radiant_delay"] = val
             send_to_pipe(f"SET_CONFIG: g_ambientIntervalSeconds: {val}")
             logging.info(f"Radiant delay set to: {val}")
-        except (ValueError, TypeError): pass
+        except (ValueError, TypeError):
+            pass
 
     radii = data.get("radii")
     if radii:
@@ -5396,57 +5627,65 @@ def settings_endpoint():
 
     return jsonify({"status": "error", "message": "No valid settings provided"}), 400
 
+
 @app.route('/campaigns/list', methods=['GET'])
 def list_campaigns_route():
     logging.info("ROUTE: /campaigns/list [GET]")
     if not os.path.exists(CAMPAIGNS_DIR):
         os.makedirs(CAMPAIGNS_DIR)
-    
+
     # Ensure Default exists
     d_dir = os.path.join(CAMPAIGNS_DIR, "Default")
-    if not os.path.exists(d_dir): os.makedirs(d_dir)
-        
+    if not os.path.exists(d_dir):
+        os.makedirs(d_dir)
+
     camps = [d for d in os.listdir(CAMPAIGNS_DIR) if os.path.isdir(os.path.join(CAMPAIGNS_DIR, d))]
     return jsonify({"status": "ok", "campaigns": camps, "current": ACTIVE_CAMPAIGN})
+
 
 @app.route('/campaigns/create', methods=['POST'])
 def create_campaign_route():
     logging.info("ROUTE: /campaigns/create [POST]")
     data = request.json
     name = data.get("name")
-    if not name: return jsonify({"status": "error", "message": "Missing name"}), 400
-    
+    if not name:
+        return jsonify({"status": "error", "message": "Missing name"}), 400
+
     # Sanitize
     safe_name = "".join([c for c in name if c.isalnum() or c in (' ', '_', '-')]).strip()
-    if not safe_name: return jsonify({"status": "error", "message": "Invalid name"}), 400
-    
+    if not safe_name:
+        return jsonify({"status": "error", "message": "Invalid name"}), 400
+
     cdir = os.path.join(CAMPAIGNS_DIR, safe_name)
     if os.path.exists(cdir):
         return jsonify({"status": "error", "message": "Campaign already exists"}), 400
-        
+
     os.makedirs(cdir)
     ensure_campaign_seeded(cdir)
-    
+
     # Automatically switch to the new campaign
     switch_campaign(safe_name)
-            
+
     logging.info(f"CAMPAIGN: Created and switched to new campaign '{safe_name}'")
     return jsonify({"status": "ok", "name": safe_name, "current": ACTIVE_CAMPAIGN})
+
 
 @app.route('/campaigns/switch', methods=['POST'])
 def switch_campaign_route():
     logging.info("ROUTE: /campaigns/switch [POST]")
     data = request.json
     name = data.get("name")
-    if not name: return jsonify({"status": "error", "message": "Missing name"}), 400
+    if not name:
+        return jsonify({"status": "error", "message": "Missing name"}), 400
     if switch_campaign(name):
         return jsonify({"status": "ok", "current": ACTIVE_CAMPAIGN})
     return jsonify({"status": "error", "message": "Campaign not found"}), 404
 
+
 @app.route('/campaigns/cull', methods=['POST'])
 def cull_campaign_route():
     logging.info("ROUTE: /campaigns/cull [POST]")
-    
+
     current_day = int(PLAYER_CONTEXT.get("day", 0))
     current_hour = int(PLAYER_CONTEXT.get("hour", 0))
     current_min = int(PLAYER_CONTEXT.get("minute", 0))
@@ -5463,9 +5702,9 @@ def cull_campaign_route():
                 try:
                     with open(fpath, "r", encoding="utf-8") as fh:
                         history = [l.strip() for l in fh.read().split('\n') if l.strip()]
-                    
+
                     new_history = [l for l in history if not is_future_timestamp(l, current_day, current_hour, current_min)]
-                    
+
                     if len(new_history) != len(history):
                         with open(fpath, "w", encoding="utf-8") as fw:
                             fw.write("\n".join(new_history))
@@ -5506,6 +5745,7 @@ def cull_campaign_route():
 
     return jsonify({"status": "ok"})
 
+
 def switch_campaign(name):
     global ACTIVE_CAMPAIGN, LIVE_CONTEXTS, EVENT_HISTORY, EVENT_HISTORY_SET, _RUMORS_CACHE_MTIME
     cdir = os.path.join(CAMPAIGNS_DIR, name)
@@ -5518,24 +5758,25 @@ def switch_campaign(name):
         EVENT_HISTORY_SET = set()
         _RUMORS_CACHE_MTIME = 0.0
         load_campaign_config()
-        update_world_index() # Re-scan save for new campaign context
+        update_world_index()  # Re-scan save for new campaign context
         return True
     return False
+
 
 @app.route('/history', methods=['POST'])
 def get_history():
     logging.info("ROUTE: /history [POST]")
     data = request.json or {}
-    
+
     # Accept both 'npc' (from Library) and 'name' (from older calls)
     npc_name = data.get('npc', data.get('name', 'Someone'))
-    
+
     logging.info(f"HISTORY: Request for {npc_name}")
-    
+
     # CRITICAL: Clean the name from pipes (serial IDs) before any lookup.
     clean_npc_name = npc_name.split('|')[0] if '|' in npc_name else npc_name
     context = data.get('context', '')
-    
+
     # DIRECT FILE LOAD — context-first resolution, never arbitrary filesystem order.
     # Uses the same identity pipeline as /chat to pick the right file.
     char_data = None
@@ -5575,7 +5816,7 @@ def get_history():
                         sid = temp_data.get('ID', f_name.replace(".cfg", ""))
                     else:
                         sid = f_name.replace(".json", "")
-                        
+
                     char_data = load_existing_profile(sid, name=clean_npc_name)
                     if char_data:
                         logging.info(f"HISTORY: Resolved {clean_npc_name} via unambiguous scan {f_name}")
@@ -5591,17 +5832,21 @@ def get_history():
     if not char_data:
         logging.debug(f"HISTORY: Falling back to get_character_data for {clean_npc_name}")
         char_data = get_character_data(clean_npc_name, context, skip_generate=True)
-    
+
     # Schema migration for legacy files
-    if "ConversationHistory" not in char_data: char_data["ConversationHistory"] = []
-    if "Race" not in char_data: char_data["Race"] = "Unknown"
-    if "Faction" not in char_data: char_data["Faction"] = "Unknown"
-    
+    if "ConversationHistory" not in char_data:
+        char_data["ConversationHistory"] = []
+    if "Race" not in char_data:
+        char_data["Race"] = "Unknown"
+    if "Faction" not in char_data:
+        char_data["Faction"] = "Unknown"
+
     # Return full history as requested
     history = char_data.get('ConversationHistory', [])
 
     def _wrap(text):
-        if not text: return ""
+        if not text:
+            return ""
         paragraphs = text.split('\n')
         wrapped = []
         for p in paragraphs:
@@ -5610,7 +5855,7 @@ def get_history():
                 continue
             wrapped.extend(textwrap.wrap(p, width=110))
         return "\n".join(wrapped)
-        
+
     lines = []
     lines.append(f"--- PROFILE: {char_data.get('Name', clean_npc_name)} ---")
     lines.append(f"Faction: {char_data.get('Faction', 'Unknown')} | Race: {char_data.get('Race', 'Unknown')}")
@@ -5630,27 +5875,28 @@ def get_history():
             lines.append(_wrap(log_line))
     else:
         lines.append("(No history recorded)")
-        
+
     formatted_output = "\n".join(lines)
-    
+
     logging.info(f"HISTORY: Returning formatted report for {clean_npc_name} ({len(history)} lines)")
     return jsonify({
         "status": "ok",
         "text": formatted_output
     })
 
+
 @app.route('/characters', methods=['GET', 'POST'])
 def list_characters():
     data = request.json or {}
-    sort_mode = data.get("sort", "alphabetical") # alphabetical or latest
-    
+    sort_mode = data.get("sort", "alphabetical")  # alphabetical or latest
+
     settings = load_settings()
     favorites = settings.get("favorites", [])
 
     logging.info(f"Scanning for characters in: {CHARACTERS_DIR} (Sort: {sort_mode})")
     if not os.path.exists(CHARACTERS_DIR):
         return jsonify({"status": "ok", "characters": ""})
-    
+
     npc_list = []
     for f in os.listdir(CHARACTERS_DIR):
         if not f.endswith('.cfg'):
@@ -5663,7 +5909,7 @@ def list_characters():
             if not storage_id:
                 raise ValueError("missing character ID")
             display = cdata.get('Name', storage_id)
-            
+
             npc_list.append({
                 "display": display,
                 "sid": storage_id,
@@ -5693,11 +5939,11 @@ def list_characters():
     # Favorites always on top
     favs = [n for n in final_list if n["is_fav"]]
     others = [n for n in final_list if not n["is_fav"]]
-    
+
     sorted_npcs = favs + others
-    
+
     names = [f"{n['display']}|{n['sid']}" for n in sorted_npcs]
-    
+
     return jsonify({
         "status": "ok",
         "characters": ",".join(names),
@@ -5705,27 +5951,30 @@ def list_characters():
         "favorites": favorites
     })
 
+
 @app.route('/favorite', methods=['POST'])
 def toggle_favorite():
     data = request.json or {}
     sid = data.get("sid")
     if not sid:
         return jsonify({"status": "error"}), 400
-    
+
     settings = load_settings()
     favorites = settings.get("favorites", [])
-    
+
     if sid in favorites:
         favorites.remove(sid)
         status = "removed"
     else:
         favorites.append(sid)
         status = "added"
-    
+
     settings["favorites"] = favorites
     save_settings(settings)
-    
+
     return jsonify({"status": "ok", "state": status})
+
+
 @app.route('/player_profile', methods=['GET', 'POST'])
 def player_profile_route():
     # Robust handling for C++ client sending empty JSON body
@@ -5735,7 +5984,7 @@ def player_profile_route():
             data = request.get_json(silent=True)
         except:
             pass
-    
+
     # If GET, or POST with no usable JSON (loading call)
     if request.method == 'GET' or not data:
         logging.info("PROMPT: Loading player profile (GUI request).")
@@ -5750,7 +5999,7 @@ def player_profile_route():
         # Save
         bio = data.get("character_bio")
         faction = data.get("player_faction")
-        
+
         cdir = get_campaign_dir()
         if bio is not None:
             with open(os.path.join(cdir, "character_bio.txt"), "w", encoding="utf-8") as f:
@@ -5758,9 +6007,10 @@ def player_profile_route():
         if faction is not None:
             with open(os.path.join(cdir, "player_faction_description.txt"), "w", encoding="utf-8") as f:
                 f.write(faction)
-        
+
         logging.info("PROMPT: Player profile updated via UI.")
         return jsonify({"status": "ok"})
+
 
 @app.route('/test_connection', methods=['POST'])
 def test_connection():
@@ -5777,17 +6027,19 @@ def test_connection():
         logging.error(f"Test Failed: {e}")
         return f"NOTIFY: ERROR: {str(e)}", 200
 
+
 @app.route('/reset', methods=['POST'])
 def reset_server():
     logging.info("Resetting server state...")
     try:
         clear_live_context_cache()
         load_configs()
-        build_world_index() 
+        build_world_index()
         logging.info("Server reset complete (Cache cleared, configs reloaded).")
         return "NOTIFY: Server Reset Complete (Identity cache cleared and configs reloaded).", 200
     except Exception as e:
         return f"NOTIFY: Reset failed: {str(e)}", 200
+
 
 def synthesis_loop():
     """Background loop to periodically synthesize world rumors."""
@@ -5797,10 +6049,11 @@ def synthesis_loop():
         try:
             settings = load_settings()
             interval = settings.get("synthesis_interval_minutes", 15)
-            if interval < 1: interval = 1 # Safety
-            
+            if interval < 1:
+                interval = 1  # Safety
+
             SYNTHESIS_STATUS["interval"] = interval
-            
+
             # If interval was shortened below current elapsed, trigger now
             if elapsed_minutes >= interval:
                 logging.info(f"NARRATIVE: Interval shortened ({interval}m). Triggering synthesis.")
@@ -5810,30 +6063,32 @@ def synthesis_loop():
                 continue
 
             # Sleep in smaller chunks to be responsive to game state changes
-            for _ in range(6): # 6 × 10s = ~60s per loop iteration
+            for _ in range(6):  # 6 × 10s = ~60s per loop iteration
                 time.sleep(10)
 
             # After ~60s of real time, check if game was running
             speed = PLAYER_CONTEXT.get("gamespeed", 1.0)
-            
+
             if speed > 0.1:
                 elapsed_minutes += 1
                 SYNTHESIS_STATUS["elapsed"] = elapsed_minutes
                 if elapsed_minutes % 10 == 0:
                     logging.info(f"NARRATIVE: Timer progress: {elapsed_minutes}/{interval} minutes.")
-            
+
             if elapsed_minutes >= interval:
                 logging.info(f"NARRATIVE: Timer reached ({interval}m). Triggering periodic synthesis.")
                 generate_global_narrative_thread()
                 elapsed_minutes = 0
                 SYNTHESIS_STATUS["elapsed"] = 0
-                    
+
         except Exception as e:
             logging.error(f"Error in synthesis loop: {e}")
             time.sleep(60)
 
+
 # Start synthesis thread
 threading.Thread(target=synthesis_loop, daemon=True).start()
+
 
 def deferred_profile_flush_loop():
     """Periodically flush deferred profile batches when foreground chat is idle."""
@@ -5846,8 +6101,10 @@ def deferred_profile_flush_loop():
             logging.error(f"Error in deferred profile flush loop: {e}")
         time.sleep(2)
 
+
 # Start deferred profile flush thread
 threading.Thread(target=deferred_profile_flush_loop, daemon=True).start()
+
 
 def player2_ping_loop():
     """Periodically pings player2 server and refreshes p2Key if it is the active provider."""
@@ -5855,7 +6112,7 @@ def player2_ping_loop():
     # Use debug for the thread start to stay out of the way for non-p2 users
     logging.debug("HEALTH: Player2 background thread initialized.")
     game_id = "019c93fc-7a93-7ac4-8c6e-df0fd09bec01"
-    
+
     while True:
         try:
             model_entry = MODELS_CONFIG.get(CURRENT_MODEL_KEY)
@@ -5875,7 +6132,6 @@ def player2_ping_loop():
                         # App might not be running or not logged in; silently fall back
                         pass
 
-
                 # 2. Ping /health as a health check
                 provider_config = PROVIDERS_CONFIG.get("player2")
                 if provider_config:
@@ -5893,14 +6149,16 @@ def player2_ping_loop():
                             logging.warning(f"HEALTH: Player2 server returned status {resp.status_code}")
                     except Exception as e:
                         logging.error(f"HEALTH: Player2 server is DOWN or unreachable: {e}")
-            
+
         except Exception as e:
             logging.error(f"Error in player2 background thread: {e}")
-        
+
         time.sleep(60)
+
 
 # Start player2 ping thread
 threading.Thread(target=player2_ping_loop, daemon=True).start()
+
 
 def monitor_kenshi_process():
     """Background thread that monitors the parent process (Kenshi) and exits if it's gone."""
@@ -5909,23 +6167,23 @@ def monitor_kenshi_process():
         if ppid <= 1:
             logging.info("SYSTEM: Parent PID is 0 or 1, skipping auto-shutdown monitor.")
             return
-            
+
         logging.info(f"SYSTEM: Monitoring parent process (PID {ppid}) for auto-shutdown.")
-        
+
         # Windows constants
         PROCESS_QUERY_INFORMATION = 0x0400
         STILL_ACTIVE = 259
-        
+
         # Use ctypes for more reliable process checking on Windows
         kernel32 = ctypes.windll.kernel32
-        
+
         while True:
             handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, ppid)
             if not handle:
                 # If we can't open it, the process is likely gone
                 logging.info(f"SYSTEM: Parent Kenshi process (PID {ppid}) no longer found. Shutting down server.")
                 os._exit(0)
-                
+
             exit_code = ctypes.c_ulong()
             if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
                 if exit_code.value != STILL_ACTIVE:
@@ -5937,29 +6195,32 @@ def monitor_kenshi_process():
                 kernel32.CloseHandle(handle)
                 logging.info(f"SYSTEM: Failed to query parent process state. Assuming it closed. Shutting down server.")
                 os._exit(0)
-            
+
             kernel32.CloseHandle(handle)
-            time.sleep(5) 
-            
+            time.sleep(5)
+
     except Exception as e:
         logging.error(f"SYSTEM: Error in kenshi process monitor: {e}")
+
 
 # Start Kenshi monitor thread
 threading.Thread(target=monitor_kenshi_process, daemon=True).start()
 
 
 # --- WEB DEBUGGER ROUTES (v2.0) ---
-from flask import render_template, send_from_directory
+
 
 @app.route('/debugger')
 def serve_debugger():
     """Serve the modern web-based visual debugger."""
     return render_template('debugger.html')
 
+
 @app.route('/models', methods=['GET'])
 def get_models_alias():
     """Alias for settings endpoint to satisfy web debugger."""
     return settings_endpoint()
+
 
 @app.route('/api/command', methods=['POST'])
 def web_command():
@@ -5968,7 +6229,7 @@ def web_command():
     cmd = data.get('command')
     if not cmd:
         return jsonify({"status": "error", "message": "Missing command"}), 400
-    
+
     # Handle specialized web commands
     if cmd == "MANUAL_SYNTHESIZE":
         generate_global_narrative_thread()
@@ -5981,11 +6242,12 @@ def web_command():
         LAST_STATE_LOG.clear()
         EVENT_THROTTLE.clear()
         return jsonify({"status": "ok", "message": "Server state reset"})
-    
+
     # Standard pipe relay
     send_to_pipe(cmd)
     logging.info(f"WEB_CMD: Relayed command: {cmd}")
     return jsonify({"status": "ok"})
+
 
 @app.route('/api/test_trade', methods=['POST'])
 def test_trade_alias():
@@ -5997,12 +6259,13 @@ def test_trade_alias():
     normalized = normalize_trade_item_name(item)
     return jsonify({"status": "ok", "original": item, "normalized": normalized})
 
+
 @app.route('/api/logs/<path:log_name>')
 def stream_logs(log_name):
     """Serve log files for the real-time event feed."""
     if ".." in log_name:
         return "Access Denied", 403
-        
+
     # Priority 1: server.log or llm_debug.log (the main tool/app logs)
     if log_name in ["server.log", "llm_debug.log"]:
         log_path = os.path.join(KENSHI_SERVER_DIR, "logs", log_name)
@@ -6013,10 +6276,11 @@ def stream_logs(log_name):
     log_dir = os.path.join(get_campaign_dir(), "logs")
     if os.path.exists(os.path.join(log_dir, log_name)):
         return send_from_directory(log_dir, log_name)
-        
+
     # Priority 3: general logs fallback
     fallback_dir = os.path.join(KENSHI_SERVER_DIR, "logs")
     return send_from_directory(fallback_dir, log_name)
+
 
 if __name__ == '__main__':
     logging.info("Kenshi LLM Server Starting on port 5000...")
