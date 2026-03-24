@@ -73,7 +73,7 @@ def _save_settings_raw(settings):
     """Save settings to SentientSands_Config.ini."""
     try:
         config = configparser.ConfigParser()
-        config.optionxform = str
+        config.optionxform = lambda optionstr: optionstr
         if os.path.exists(INI_PATH):
             config.read(INI_PATH)
 
@@ -133,7 +133,7 @@ def load_settings():
     if os.path.exists(INI_PATH):
         try:
             config = configparser.ConfigParser()
-            config.optionxform = str
+            config.optionxform = lambda optionstr: optionstr
             config.read(INI_PATH)
             if "Settings" in config:
                 for key in defaults.keys():
