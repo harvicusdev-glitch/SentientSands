@@ -5432,10 +5432,14 @@ def rename_endpoint():
     if not target_id:
         target_id = context.get("persistent_id") or context.get("id") or old_name
 
-    cdata, file_path = get_character_data(target_id, context, skip_generate=False)
+    cdata = get_character_data(target_id, context, skip_generate=False)
     if cdata:
+        # Fetch the destination file path separately
+        file_path = _character_path(target_id, name=old_name)
+
         cdata["Name"] = new_name
-        dack.save(file_path, cdata)
+        dack.save(cdata, file_path)
+
         logging.info(f"RENAME: Updated identity for '{old_name}' -> '{new_name}' in {file_path}")
         return jsonify({"status": "ok", "new_name": new_name})
 
