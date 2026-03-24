@@ -5478,31 +5478,31 @@ def settings_endpoint():
         curr_prov = MODELS_CONFIG.get(CURRENT_MODEL_KEY, {}).get("provider", "unknown")
 
         return jsonify({
-            "status": "ok",
-            "models": mbp,        # C++ dropdowns loop uses this
-            "all_models": MODELS_CONFIG,  # C++ initialization lookup
-            "providers": list(PROVIDERS_CONFIG.keys()),
-            "current": CURRENT_MODEL_KEY,
-            "current_provider": curr_prov,
-            "campaigns": campaigns,
-            "current_campaign": ACTIVE_CAMPAIGN,
-            "enable_ambient": settings.get("enable_ambient", True),
-            "enable_renamer": settings.get("enable_renamer", True),
-            "enable_animal_renamer": settings.get("enable_animal_renamer", True),
-            "ambient_timer": settings.get("radiant_delay", 240),
-            "synthesis_timer": settings.get("synthesis_interval_minutes", 15),
-            "global_events_count": settings.get("global_events_count", 7),
-            "dialogue_speed": settings.get("dialogue_speed_seconds", 5),
-            "bubble_life": settings.get("bubble_life", 5),
-            "chat_hotkey": settings.get("chat_hotkey", "\\"),
+            "status"                    : "ok",
+            "models"                    : mbp,        # C++ dropdowns loop uses this
+            "all_models"                : MODELS_CONFIG,  # C++ initialization lookup
+            "providers"                 : list(PROVIDERS_CONFIG.keys()),
+            "current"                   : CURRENT_MODEL_KEY,
+            "current_provider"          : curr_prov,
+            "campaigns"                 : campaigns,
+            "current_campaign"          : ACTIVE_CAMPAIGN,
+            "enable_ambient"            : settings.get("enable_ambient", True),
+            "enable_renamer"            : settings.get("enable_renamer", True),
+            "enable_animal_renamer"     : settings.get("enable_animal_renamer", True),
+            "ambient_timer"             : settings.get("radiant_delay", 240),
+            "synthesis_timer"           : settings.get("synthesis_interval_minutes", 15),
+            "global_events_count"       : settings.get("global_events_count", 7),
+            "dialogue_speed"            : settings.get("dialogue_speed_seconds", 5),
+            "bubble_life"               : settings.get("bubble_life", 5),
+            "chat_hotkey"               : settings.get("chat_hotkey", "\\"),
             "radii": {
-                "radiant": settings.get("radiant_range", r),
-                "talk": settings.get("talk_radius", t),
-                "yell": settings.get("yell_radius", y)
+                "radiant"               : settings.get("radiant_range", r),
+                "talk"                  : settings.get("talk_radius", t),
+                "yell"                  : settings.get("yell_radius", y)
             },
-            "language": settings.get("language", "English"),
-            "supported_languages": list(LOCALIZATION_CONFIG.keys()),
-            "ui_translation": LOCALIZATION_CONFIG.get(settings.get("language", "English"), {})
+            "language"                  : settings.get("language", "English"),
+            "supported_languages"       : list(LOCALIZATION_CONFIG.keys()),
+            "ui_translation"            : LOCALIZATION_CONFIG.get(settings.get("language", "English"), {})
         })
 
     # ---------- WRITE (POST with JSON body) ----------
