@@ -12,7 +12,7 @@
 #include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Inventory.h>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/Item.h>
 #include <kenshi/Platoon.h>
 #include <kenshi/PlayerInterface.h>

@@ -2,7 +2,7 @@
 #include "Globals.h"
 #include "Utils.h"
 #include <fstream>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/CharStats.h>
 #include <kenshi/Character.h>
 #include <kenshi/Faction.h>
