@@ -19,6 +19,11 @@
 #include <kenshi/util/hand.h>
 #include <sstream>
 #include <vector>
+#include <algorithm>
+#include <set>
+#include <kenshi/CharBody.h>
+#include <kenshi/Tasker.h>
+#include <kenshi/RootObjectBase.h>
 
 std::string SlotToString(AttachSlot slot) {
   switch (slot) {
@@ -235,6 +240,133 @@ std::string GetPersistentIDFor(Character *npc) {
   } catch (...) {
   }
   return "";
+}
+
+// -----------------------------------------------------------------------------
+// LIVE ACTION / BUILDING HELPERS
+// -----------------------------------------------------------------------------
+// These helpers are intentionally lightweight.
+// We only expose the fields we agreed on for JSON output:
+// - current_subject_name
+// - building_designation
+// - in_town_walls
+// - has_shop_inventory
+// - lightweight inventory/shop summaries
+// We are deliberately not reintroducing the larger experimental dump/debug tree.
+
+static std::string GetSubjectNameSafe(const hand& h) {
+  if (!h.isValid())
+    return "";
+
+  try {
+    RootObjectBase* rob = h.getRootObjectBase();
+    if (rob && (uintptr_t)rob > 0x1000)
+      return rob->getName();
+  }
+  catch (...) {
+  }
+  return "";
+}
+
+// Minimal designation export.
+// We only map the designations we currently care about explicitly and keep
+// everything else numeric for now.
+static std::string BuildingDesignationToString(BuildingDesignation d) {
+  switch (d) {
+  case BD_SHOP:
+    return "BD_SHOP";
+  case BD_BAR:
+    return "BD_BAR";
+  default:
+    return "BD_" + ToString((int)d);
+  }
+}
+
+// Conservative shopkeeper detection.
+// We only say an NPC has shop inventory if all three layers agree:
+// 1) trader flag
+// 2) NPC is inside a shop context
+// 3) live action looks like active shopkeeper behavior
+//
+// This avoids broad false positives while still catching the two practical
+// cases we discussed:
+// - "shopkeeper"
+// - "operating" + subject containing "shopkeeper" or "counter"
+static bool HasShopInventoryNow(bool isTrader,
+  bool inShop,
+  const std::string& taskDescription,
+  const std::string& subjectName) {
+  if (!isTrader || !inShop)
+    return false;
+
+  std::string task = taskDescription;
+  std::string subject = subjectName;
+  std::transform(task.begin(), task.end(), task.begin(), ::tolower);
+  std::transform(subject.begin(), subject.end(), subject.begin(), ::tolower);
+
+  if (task.find("shopkeeper") != std::string::npos)
+    return true;
+
+  if (task.find("operating") != std::string::npos) {
+    if (subject.find("shopkeeper") != std::string::npos ||
+      subject.find("counter") != std::string::npos)
+      return true;
+  }
+
+  return false;
+}
+
+// Small summary-only category helper.
+// This is intentionally conservative and only exists so JSON summaries can
+// expose high-level item groups without pulling in the large experimental
+// classification system.
+static std::string GetSimpleItemCategory(Item* it) {
+  if (!it || (uintptr_t)it < 0x1000)
+    return "";
+
+  try {
+    std::string slot = SlotToString(it->slotType);
+    if (slot == "weapon" || slot == "back")
+      return "weapon";
+    if (slot == "hat" || slot == "body" || slot == "legs" ||
+      slot == "shirt" || slot == "boots" || slot == "gloves")
+      return "armor";
+    if (slot == "backpack")
+      return "backpack";
+
+    std::string name = it->getName();
+    std::string lower = name;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+    if (lower.find("medkit") != std::string::npos ||
+      lower.find("first aid") != std::string::npos ||
+      lower.find("splint") != std::string::npos ||
+      lower.find("bandage") != std::string::npos)
+      return "medical";
+
+    if (lower.find("ration") != std::string::npos ||
+      lower.find("bread") != std::string::npos ||
+      lower.find("meat") != std::string::npos ||
+      lower.find("food") != std::string::npos)
+      return "food";
+  }
+  catch (...) {
+  }
+
+  return "misc";
+}
+
+static std::string JoinStringSet(const std::set<std::string>& values) {
+  std::string out;
+  for (std::set<std::string>::const_iterator it = values.begin();
+    it != values.end(); ++it) {
+    if (it->empty())
+      continue;
+    if (!out.empty())
+      out += ", ";
+    out += *it;
+  }
+  return out;
 }
 
 std::string GetIdentityFaction(Character *npc) {
@@ -471,6 +603,40 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
   }
   json += "\"job\": \"" + EscapeJSON(job) + "\",";
 
+  // Live action state:
+  // - current_task_description gives the action in gameplay language
+  // - current_subject_name gives the current target/object/building name
+  std::string currentTaskDescription = "";
+  std::string currentSubjectName = "";
+
+  try {
+    CharBody* body = npc->getBody();
+    if (body && (uintptr_t)body > 0x1000) {
+      const Tasker* currentAction = body->getCurrentAction();
+      if (currentAction && (uintptr_t)currentAction > 0x1000) {
+        try {
+          currentTaskDescription = currentAction->getDescription();
+        }
+        catch (...) {
+        }
+      }
+
+      try {
+        hand currentSubject = body->getCurrentSubject();
+        currentSubjectName = GetSubjectNameSafe(currentSubject);
+      }
+      catch (...) {
+      }
+    }
+  }
+  catch (...) {
+  }
+
+  json += "\"current_task_description\": \"" +
+      EscapeJSON(currentTaskDescription) + "\",";
+  json += "\"current_subject_name\": \"" +
+      EscapeJSON(currentSubjectName) + "\",";
+
   // IDENTITY STABILITY
   std::string identityFaction = GetIdentityFaction(npc);
   json += "\"origin_faction\": \"" + EscapeJSON(identityFaction) + "\",";
@@ -509,24 +675,169 @@ std::string GetDetailedContext(Character *npc, const std::string &type) {
   json += "\"is_leader\": " + std::string(isLeader ? "true" : "false") + ",";
 
   // Building Context
+  // We keep building resolution simple and tied to the working native path:
+  // npc->isIndoors() -> building handle -> building object.
+  //
+  // Important change:
+  // "indoors" is no longer treated as true merely because a handle exists.
+  // Instead, it is only true when we resolve a meaningful building name.
   bool indoors = false;
   std::string buildingName = "Unknown";
+  std::string buildingDesignation = "Unknown";
+  std::string buildingTypeName = "";
   bool inAShop = false;
-  const hand &buildingHandle = npc->isIndoors();
+
+  const hand& buildingHandle = npc->isIndoors();
   if (buildingHandle.isValid()) {
-    indoors = true;
-    Building *b = buildingHandle.getBuilding();
-    if (b) {
+    Building* b = buildingHandle.getBuilding();
+    if (b && (uintptr_t)b > 0x1000) {
       buildingName = b->getName();
+      buildingDesignation = BuildingDesignationToString(b->designation);
+      indoors = (!buildingName.empty() && buildingName != "Unknown");
+
       if (b->isAShop() || b->designation == BD_SHOP ||
-          b->designation == BD_BAR) {
+        b->designation == BD_BAR) {
         inAShop = true;
+      }
+
+      try {
+        if (b->data && !b->data->name.empty()) {
+          buildingTypeName = b->data->name;
+        }
+      }
+      catch (...) {
       }
     }
   }
 
+  bool inTownWalls = false;
+  try {
+  const int inside = npc->amInsideTownWalls();
+  inTownWalls = (inside != 0);
+  }
+  catch (...) {
+  }
+
+  bool hasShopInventory = HasShopInventoryNow(
+    isTrader,
+    inAShop,
+    currentTaskDescription,
+    currentSubjectName);
+
+  // Lightweight inventory summaries.
+  // These are summary-only fields and do not replace the existing inventory
+  // JSON list below.
+  bool hasInventory = false;
+  bool hasBackpack = false;
+  int inventoryItemCount = 0;
+  std::set<std::string> inventoryCategories;
+  int wornItemCount = 0;
+  std::set<std::string> wornCategories;
+  int shopItemCount = 0;
+  std::set<std::string> shopCategories;
+
+  if (GetCurrentThreadId() == g_mainThreadId) {
+    std::vector<Item*> summaryItems;
+    GetAllCharacterItems(npc, summaryItems);
+    for (uint32_t i = 0; i < summaryItems.size(); ++i) {
+      Item* it = summaryItems[i];
+      if (!it || (uintptr_t)it < 0x1000)
+        continue;
+
+      hasInventory = true;
+      inventoryItemCount += (int)it->quantity;
+
+      std::string category = GetSimpleItemCategory(it);
+      if (!category.empty())
+        inventoryCategories.insert(category);
+
+      if (it->slotType == ATTACH_BACKPACK)
+        hasBackpack = true;
+
+      if (it->isEquipped) {
+        wornItemCount += (int)it->quantity;
+        if (!category.empty())
+          wornCategories.insert(category);
+      }
+    }
+
+    // Shop summary is intentionally separated from the normal inventory list.
+    if (hasShopInventory) {
+      try {
+        const hand& shopBuildingHandle = npc->isIndoors();
+        if (shopBuildingHandle.isValid()) {
+          Building* shopBuilding = shopBuildingHandle.getBuilding();
+          if (shopBuilding && (uintptr_t)shopBuilding > 0x1000) {
+            lektor<Building*> counters;
+            shopBuilding->findAllFurnitureWithFunction(counters, BF_SHOP);
+
+            for (uint32_t c = 0; c < counters.size(); ++c) {
+              Building* counter = counters[c];
+              if (!counter || (uintptr_t)counter < 0x1000)
+                continue;
+
+              Inventory* shopInv = counter->getInventory();
+              if (!shopInv || (uintptr_t)shopInv < 0x1000)
+                continue;
+
+              lektor<InventorySection*>& sections =
+                shopInv->sectionsInSearchOrder;
+              for (uint32_t s = 0; s < sections.size(); ++s) {
+                InventorySection* sect = sections[s];
+                if (!sect)
+                  continue;
+
+                const Ogre::vector<InventorySection::SectionItem>::type& items =
+                  sect->getItems();
+                for (uint32_t i = 0; i < items.size(); ++i) {
+                  Item* it = items[i].item;
+                  if (!it || (uintptr_t)it < 0x1000)
+                    continue;
+
+                  shopItemCount += (int)it->quantity;
+                  std::string category = GetSimpleItemCategory(it);
+                  if (!category.empty())
+                    shopCategories.insert(category);
+                }
+              }
+            }
+          }
+        }
+      }
+      catch (...) {
+      }
+    }
+  }
+
+  json += "\"has_inventory\": " +
+    std::string(hasInventory ? "true" : "false") + ",";
+  json += "\"has_backpack\": " +
+    std::string(hasBackpack ? "true" : "false") + ",";
+  json += "\"inventory_item_count\": " +
+    ToString(inventoryItemCount) + ",";
+  json += "\"inventory_categories\": \"" +
+    EscapeJSON(JoinStringSet(inventoryCategories)) + "\",";
+  json += "\"worn_item_count\": " +
+    ToString(wornItemCount) + ",";
+  json += "\"worn_categories\": \"" +
+    EscapeJSON(JoinStringSet(wornCategories)) + "\",";
+  json += "\"shop_item_count\": " +
+    ToString(shopItemCount) + ",";
+  json += "\"shop_categories\": \"" +
+    EscapeJSON(JoinStringSet(shopCategories)) + "\",";
+
   json += "\"indoors\": " + std::string(indoors ? "true" : "false") + ",";
   json += "\"in_shop\": " + std::string(inAShop ? "true" : "false") + ",";
+  json += "\"building_name\": \"" + EscapeJSON(buildingName) + "\",";
+  json += "\"building_designation\": \"" +
+    EscapeJSON(buildingDesignation) + "\",";
+  json += "\"building_type_name\": \"" +
+    EscapeJSON(buildingTypeName) + "\",";
+  json += "\"in_town_walls\": " +
+    std::string(inTownWalls ? "true" : "false") + ",";
+  json += "\"has_shop_inventory\": " +
+    std::string(hasShopInventory ? "true" : "false") + ",";
+
   json += "\"building_name\": \"" + EscapeJSON(buildingName) + "\",";
 
   if (ppWorld && *ppWorld) {
